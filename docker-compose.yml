@@ -1,4 +1,55 @@
+version: '3.8'
+
 services:
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tumapay_backend
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      API_PREFIX: api/v1
+      APP_URL: http://localhost:3000
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: tumapay_user
+      DB_PASSWORD: tumapay_pass_2024
+      DB_DATABASE: tumapay_db
+      DB_SYNCHRONIZE: true
+      DB_LOGGING: false
+      # Auth
+      BETTER_AUTH_SECRET: tumapay-prod-secret-key-2024-change-in-production-minimum-32-chars
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_TRUST_HOST: true
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: tumapay_redis_2024
+      REDIS_TTL: 3600
+      # CORS
+      CORS_ORIGIN: http://localhost:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - tumapay_network
+    volumes:
+      - ./backend/src:/app/src  # For development hot-reload (remove in production)
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/v1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   postgres:
     image: postgres:15-alpine
     container_name: tumapay_postgres

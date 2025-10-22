@@ -196,9 +196,9 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    await this.userRepository.update(user.id, {
-      emailVerified: true,
-    });
+    // Update user's emailVerified field
+    user.emailVerified = true;
+    const updatedUser = await this.userRepository.save(user);
 
     // Mark verification as used
     await this.verificationRepository.update(verification.id, {
@@ -210,7 +210,7 @@ export class AuthService {
       success: true,
       message: 'Email verified successfully',
       data: {
-        user: this.sanitizeUser(user),
+        user: this.sanitizeUser(updatedUser),
       },
     };
   }

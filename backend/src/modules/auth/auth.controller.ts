@@ -65,8 +65,9 @@ export class AuthController {
   async signIn(
     @Body() signInDto: SignInDto,
     @Ip() ipAddress: string,
-    @Headers('user-agent') userAgent: string,
+    @Headers() headers?: Record<string, string>,
   ) {
+    const userAgent = headers?.['user-agent'] || headers?.['User-Agent'] || 'unknown';
     return this.authService.signIn(signInDto, ipAddress, userAgent);
   }
 
