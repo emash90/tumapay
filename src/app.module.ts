@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { getDatabaseConfig } from './config/database.config';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -20,7 +21,8 @@ import { getDatabaseConfig } from './config/database.config';
       inject: [ConfigService],
     }),
 
-    // Feature modules will be added here
+    // Feature modules
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
