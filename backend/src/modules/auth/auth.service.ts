@@ -124,17 +124,16 @@ export class AuthService {
     const session = await this.createSession(user.id, ipAddress, userAgent);
 
     // Update last login
-    await this.userRepository.update(user.id, {
-      lastLoginAt: new Date(),
-      lastLoginIp: ipAddress,
-      lastLoginUserAgent: userAgent,
-    });
+    user.lastLoginAt = new Date();
+    user.lastLoginIp = ipAddress || null;
+    user.lastLoginUserAgent = userAgent || null;
+    const updatedUser = await this.userRepository.save(user);
 
     return {
       success: true,
       message: 'Signed in successfully',
       data: {
-        user: this.sanitizeUser(user),
+        user: this.sanitizeUser(updatedUser),
         session: {
           token: session.token,
           expiresAt: session.expiresAt,

@@ -67,11 +67,11 @@ export class User extends BaseEntity {
 
   // Activity tracking
   @Column({ type: 'timestamp', nullable: true, name: 'last_login_at' })
-  lastLoginAt: Date;
+  lastLoginAt: Date | null;
 
   @Column({ type: 'varchar', nullable: true, name: 'last_login_ip' })
-  lastLoginIp: string;
+  lastLoginIp: string | null;
 
   @Column({ type: 'varchar', nullable: true, name: 'last_login_user_agent' })
-  lastLoginUserAgent: string;
+  lastLoginUserAgent: string | null;
 }

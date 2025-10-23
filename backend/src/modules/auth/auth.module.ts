@@ -15,6 +15,11 @@ import { RolesGuard } from '../../common/guards/roles.guard';
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthGuard, RolesGuard],
-  exports: [AuthService, AuthGuard, RolesGuard],
+  exports: [
+    AuthService,
+    AuthGuard,
+    RolesGuard,
+    TypeOrmModule,
+  ],
 })
 export class AuthModule {}
