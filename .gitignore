@@ -30,6 +30,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Documentation files (markdown)
 *.md
 
 # Testing
