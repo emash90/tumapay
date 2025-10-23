@@ -8,31 +8,10 @@ services:
       dockerfile: Dockerfile
     container_name: tumapay_backend
     restart: always
+    env_file:
+      - .env
     ports:
       - '3000:3000'
-    environment:
-      NODE_ENV: development
-      PORT: 3000
-      API_PREFIX: api/v1
-      APP_URL: http://localhost:3000
-      # Database
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USERNAME: tumapay_user
-      DB_PASSWORD: tumapay_pass_2024
-      DB_DATABASE: tumapay_db
-      DB_SYNCHRONIZE: true
-      DB_LOGGING: false
-      # Auth
-      BETTER_AUTH_SECRET: tumapay-prod-secret-key-2024-change-in-production-minimum-32-chars
-      BETTER_AUTH_URL: http://localhost:3000
-      BETTER_AUTH_TRUST_HOST: true
-      # Redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: tumapay_redis_2024
-      # CORS
-      CORS_ORIGIN: http://localhost:3001
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,11 +32,8 @@ services:
     image: postgres:15-alpine
     container_name: tumapay_postgres
     restart: always
-    environment:
-      POSTGRES_DB: tumapay_db
-      POSTGRES_USER: tumapay_user
-      POSTGRES_PASSWORD: tumapay_pass_2024
-      PGDATA: /var/lib/postgresql/data
+    env_file:
+      - .env
     ports:
       - '5433:5432'
     volumes:
@@ -66,7 +42,7 @@ services:
     networks:
       - tumapay_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tumapay_user -d tumapay_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +51,9 @@ services:
     image: redis:7-alpine
     container_name: tumapay_redis
     restart: always
-    command: redis-server --requirepass tumapay_redis_2024
+    env_file:
+      - .env
+    command: sh -c 'redis-server --requirepass "$${REDIS_PASSWORD}"'
     ports:
       - '6379:6379'
     volumes:
@@ -83,7 +61,7 @@ services:
     networks:
       - tumapay_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--pass", "$${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -93,9 +71,8 @@ services:
     image: dpage/pgadmin4:latest
     container_name: tumapay_pgadmin
     restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@tumapay.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
+    env_file:
+      - .env
     ports:
       - '5050:80'
     networks:
