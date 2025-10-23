@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
+import { SessionController } from './session.controller';
 import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
 import { User } from '../../database/entities/user.entity';
@@ -14,7 +15,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
   imports: [
     TypeOrmModule.forFeature([User, Account, Session, Verification]),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, SessionController],
   providers: [AuthService, SessionService, AuthGuard, RolesGuard],
   exports: [
     AuthService,
