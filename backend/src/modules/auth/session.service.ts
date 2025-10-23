@@ -1,10 +1,10 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
 import { Session } from '../../database/entities/session.entity';
 import * as crypto from 'crypto';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from '../redis/redis.module';
 
 @Injectable()
 export class SessionService {
@@ -15,9 +15,23 @@ export class SessionService {
   constructor(
     @InjectRepository(Session)
     private sessionRepository: Repository<Session>,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
-  ) {}
+    @Inject(REDIS_CLIENT)
+    private readonly redisClient: Redis,
+  ) {
+    this.verifyRedisConnection();
+  }
+
+  /**
+   * Verify Redis connection on startup
+   */
+  private async verifyRedisConnection(): Promise<void> {
+    try {
+      await this.redisClient.ping();
+      this.logger.log('Redis connection verified');
+    } catch (error) {
+      this.logger.error('Failed to connect to Redis:', error.message);
+    }
+  }
 
   /**
    * Create a new session (store in both Redis and PostgreSQL)
@@ -27,8 +41,6 @@ export class SessionService {
     ipAddress?: string,
     userAgent?: string,
   ): Promise<Session> {
-    const startTime = Date.now();
-
     try {
       // Generate secure token
       const token = crypto.randomBytes(32).toString('hex');
@@ -49,23 +61,9 @@ export class SessionService {
       // Cache session in Redis for fast access
       await this.cacheSession(savedSession);
 
-      const duration = Date.now() - startTime;
-      this.logger.log({
-        event: 'session_created',
-        userId,
-        sessionId: savedSession.id,
-        duration: `${duration}ms`,
-        cached: true,
-      });
-
       return savedSession;
     } catch (error) {
-      this.logger.error({
-        event: 'session_create_failed',
-        userId,
-        error: error.message,
-        duration: `${Date.now() - startTime}ms`,
-      });
+      this.logger.error('Failed to create session:', error.message);
       throw error;
     }
   }
@@ -74,21 +72,13 @@ export class SessionService {
    * Get session by token (Redis first, then PostgreSQL)
    */
   async getSession(token: string): Promise<Session | null> {
-    const startTime = Date.now();
-
     try {
       // FAST PATH: Try Redis first
       const cacheKey = this.getCacheKey(token);
-      const cachedSession = await this.cacheManager.get<Session>(cacheKey);
+      const cachedData = await this.redisClient.get(cacheKey);
 
-      if (cachedSession) {
-        const duration = Date.now() - startTime;
-        this.logger.debug({
-          event: 'session_retrieved',
-          source: 'redis',
-          duration: `${duration}ms`,
-          cacheHit: true,
-        });
+      if (cachedData) {
+        const cachedSession: Session = JSON.parse(cachedData);
 
         // Validate expiration
         if (new Date() > new Date(cachedSession.expiresAt)) {
@@ -104,23 +94,9 @@ export class SessionService {
         relations: ['user'],
       });
 
-      const duration = Date.now() - startTime;
-
       if (!session) {
-        this.logger.debug({
-          event: 'session_not_found',
-          duration: `${duration}ms`,
-          cacheHit: false,
-        });
         return null;
       }
-
-      this.logger.debug({
-        event: 'session_retrieved',
-        source: 'database',
-        duration: `${duration}ms`,
-        cacheHit: false,
-      });
 
       // Validate expiration
       if (new Date() > new Date(session.expiresAt)) {
@@ -133,33 +109,16 @@ export class SessionService {
 
       return session;
     } catch (error) {
-      this.logger.error({
-        event: 'session_retrieval_failed',
-        error: error.message,
-        duration: `${Date.now() - startTime}ms`,
-      });
+      this.logger.error('Failed to retrieve session:', error.message);
 
       // Attempt fallback to database if Redis fails
       try {
-        const session = await this.sessionRepository.findOne({
+        return await this.sessionRepository.findOne({
           where: { token, isActive: true },
           relations: ['user'],
         });
-
-        if (session) {
-          this.logger.warn({
-            event: 'redis_fallback_success',
-            message: 'Retrieved session from database after Redis failure',
-          });
-        }
-
-        return session;
       } catch (dbError) {
-        this.logger.error({
-          event: 'session_retrieval_complete_failure',
-          redisError: error.message,
-          dbError: dbError.message,
-        });
+        this.logger.error('Database fallback failed:', dbError.message);
         throw error;
       }
     }
@@ -169,27 +128,15 @@ export class SessionService {
    * Invalidate session (remove from both Redis and PostgreSQL)
    */
   async invalidateSession(token: string): Promise<void> {
-    const startTime = Date.now();
-
     try {
       // Remove from Redis
       const cacheKey = this.getCacheKey(token);
-      await this.cacheManager.del(cacheKey);
+      await this.redisClient.del(cacheKey);
 
       // Mark as inactive in database (don't delete for audit trail)
       await this.sessionRepository.update({ token }, { isActive: false });
-
-      const duration = Date.now() - startTime;
-      this.logger.log({
-        event: 'session_invalidated',
-        duration: `${duration}ms`,
-      });
     } catch (error) {
-      this.logger.error({
-        event: 'session_invalidation_failed',
-        error: error.message,
-        duration: `${Date.now() - startTime}ms`,
-      });
+      this.logger.error('Failed to invalidate session:', error.message);
       throw error;
     }
   }
@@ -198,8 +145,6 @@ export class SessionService {
    * Invalidate all sessions for a user
    */
   async invalidateAllUserSessions(userId: string): Promise<void> {
-    const startTime = Date.now();
-
     try {
       // Get all user sessions from database
       const sessions = await this.sessionRepository.find({
@@ -208,28 +153,17 @@ export class SessionService {
 
       // Remove from Redis
       const cacheKeys = sessions.map((s) => this.getCacheKey(s.token));
-      await Promise.all(cacheKeys.map((key) => this.cacheManager.del(key)));
+      if (cacheKeys.length > 0) {
+        await this.redisClient.del(...cacheKeys);
+      }
 
       // Mark all as inactive in database
       await this.sessionRepository.update(
         { userId, isActive: true },
         { isActive: false },
       );
-
-      const duration = Date.now() - startTime;
-      this.logger.log({
-        event: 'all_sessions_invalidated',
-        userId,
-        sessionCount: sessions.length,
-        duration: `${duration}ms`,
-      });
     } catch (error) {
-      this.logger.error({
-        event: 'bulk_invalidation_failed',
-        userId,
-        error: error.message,
-        duration: `${Date.now() - startTime}ms`,
-      });
+      this.logger.error('Failed to invalidate all user sessions:', error.message);
       throw error;
     }
   }
@@ -275,19 +209,38 @@ export class SessionService {
 
       // Only cache if not expired
       if (ttl > 0) {
-        await this.cacheManager.set(cacheKey, session, ttl * 1000); // Convert to ms
-        this.logger.debug({
-          event: 'session_cached',
-          sessionId: session.id,
-          ttl: `${ttl}s`,
-        });
+        // Serialize session data explicitly to ensure user relation is preserved
+        const sessionData = {
+          id: session.id,
+          userId: session.userId,
+          token: session.token,
+          expiresAt: session.expiresAt,
+          ipAddress: session.ipAddress,
+          userAgent: session.userAgent,
+          isActive: session.isActive,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          user: session.user ? {
+            id: session.user.id,
+            email: session.user.email,
+            firstName: session.user.firstName,
+            lastName: session.user.lastName,
+            emailVerified: session.user.emailVerified,
+            isActive: session.user.isActive,
+            role: session.user.role,
+            createdAt: session.user.createdAt,
+            updatedAt: session.user.updatedAt,
+            lastLoginAt: session.user.lastLoginAt,
+            lastLoginIp: session.user.lastLoginIp,
+            lastLoginUserAgent: session.user.lastLoginUserAgent,
+          } : null,
+        };
+
+        const serialized = JSON.stringify(sessionData);
+        await this.redisClient.setex(cacheKey, ttl, serialized);
       }
     } catch (error) {
-      this.logger.warn({
-        event: 'cache_set_failed',
-        sessionId: session.id,
-        error: error.message,
-      });
+      this.logger.warn('Failed to cache session:', error.message);
       // Don't throw - caching failure shouldn't break session creation
     }
   }

@@ -31,7 +31,6 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: tumapay_redis_2024
-      REDIS_TTL: 3600
       # CORS
       CORS_ORIGIN: http://localhost:3001
     depends_on:
