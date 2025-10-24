@@ -58,10 +58,20 @@ export class SessionService {
 
       const savedSession = await this.sessionRepository.save(session);
 
-      // Cache session in Redis for fast access
-      await this.cacheSession(savedSession);
+      // Load the session with user relation for caching
+      const sessionWithUser = await this.sessionRepository.findOne({
+        where: { id: savedSession.id },
+        relations: ['user'],
+      });
 
-      return savedSession;
+      if (!sessionWithUser) {
+        throw new Error('Failed to load session after creation');
+      }
+
+      // Cache session in Redis for fast access
+      await this.cacheSession(sessionWithUser);
+
+      return sessionWithUser;
     } catch (error) {
       this.logger.error('Failed to create session:', error.message);
       throw error;
