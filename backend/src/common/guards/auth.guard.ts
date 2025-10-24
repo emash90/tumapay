@@ -5,20 +5,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Session } from '../../database/entities/session.entity';
-import { User } from '../../database/entities/user.entity';
+import { SessionService } from '../../modules/auth/session.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    @InjectRepository(Session)
-    private sessionRepository: Repository<Session>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private sessionService: SessionService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -40,19 +34,11 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      // Find session with token
-      const session = await this.sessionRepository.findOne({
-        where: { token, isActive: true },
-        relations: ['user'],
-      });
+      // Use SessionService for session retrieval (Redis + DB)
+      const session = await this.sessionService.getSession(token);
 
       if (!session) {
         throw new UnauthorizedException('Invalid or expired session');
-      }
-
-      // Check if session is expired
-      if (new Date() > new Date(session.expiresAt)) {
-        throw new UnauthorizedException('Session has expired');
       }
 
       // Check if user is active
@@ -77,14 +63,12 @@ export class AuthGuard implements CanActivate {
     const authHeader = request.headers.authorization || request.headers.Authorization;
 
     if (!authHeader) {
-      console.log('No authorization header found. Headers:', Object.keys(request.headers));
       return undefined;
     }
 
     const [type, token] = authHeader.split(' ');
 
     if (type !== 'Bearer') {
-      console.log('Invalid auth type:', type);
       return undefined;
     }
 

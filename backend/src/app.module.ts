@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { getDatabaseConfig } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
+import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
   imports: [
@@ -13,6 +14,9 @@ import { AuthModule } from './modules/auth/auth.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Direct Redis Module
+    RedisModule,
 
     // TypeORM database connection
     TypeOrmModule.forRootAsync({

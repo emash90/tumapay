@@ -14,10 +14,10 @@ export class Session extends BaseEntity {
   expiresAt: Date;
 
   @Column({ type: 'varchar', nullable: true, name: 'ip_address' })
-  ipAddress: string;
+  ipAddress: string | null;
 
   @Column({ type: 'varchar', nullable: true, name: 'user_agent' })
-  userAgent: string;
+  userAgent: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   country: string;

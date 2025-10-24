@@ -10,9 +10,9 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { User, UserRole } from '../../database/entities/user.entity';
 import { Account } from '../../database/entities/account.entity';
-import { Session } from '../../database/entities/session.entity';
 import { Verification, VerificationType } from '../../database/entities/verification.entity';
 import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto } from './dto';
+import { SessionService } from './session.service';
 
 @Injectable()
 export class AuthService {
@@ -21,8 +21,7 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(Account)
     private accountRepository: Repository<Account>,
-    @InjectRepository(Session)
-    private sessionRepository: Repository<Session>,
+    private sessionService: SessionService,
     @InjectRepository(Verification)
     private verificationRepository: Repository<Verification>,
   ) {}
@@ -120,8 +119,12 @@ export class AuthService {
     //   throw new UnauthorizedException('Please verify your email before signing in');
     // }
 
-    // Create session
-    const session = await this.createSession(user.id, ipAddress, userAgent);
+    // Create session using SessionService
+    const session = await this.sessionService.createSession(
+      user.id,
+      ipAddress,
+      userAgent,
+    );
 
     // Update last login
     user.lastLoginAt = new Date();
@@ -146,18 +149,7 @@ export class AuthService {
    * Sign out user
    */
   async signOut(token: string) {
-    const session = await this.sessionRepository.findOne({
-      where: { token },
-    });
-
-    if (!session) {
-      throw new NotFoundException('Session not found');
-    }
-
-    // Deactivate session
-    await this.sessionRepository.update(session.id, {
-      isActive: false,
-    });
+    await this.sessionService.invalidateSession(token);
 
     return {
       success: true,
@@ -303,10 +295,7 @@ export class AuthService {
     });
 
     // Invalidate all existing sessions for security
-    await this.sessionRepository.update(
-      { userId: user.id },
-      { isActive: false },
-    );
+    await this.sessionService.invalidateAllUserSessions(user.id);
 
     return {
       success: true,
@@ -318,17 +307,10 @@ export class AuthService {
    * Get current user session
    */
   async getSession(token: string) {
-    const session = await this.sessionRepository.findOne({
-      where: { token, isActive: true },
-      relations: ['user', 'user.business'],
-    });
+    const session = await this.sessionService.getSession(token);
 
     if (!session) {
       throw new UnauthorizedException('Invalid or expired session');
-    }
-
-    if (new Date() > new Date(session.expiresAt)) {
-      throw new UnauthorizedException('Session has expired');
     }
 
     return {
@@ -365,26 +347,6 @@ export class AuthService {
         resolve(key === derivedKey.toString('hex'));
       });
     });
-  }
-
-  private async createSession(
-    userId: string,
-    ipAddress?: string,
-    userAgent?: string,
-  ): Promise<Session> {
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
-
-    const session = this.sessionRepository.create({
-      userId,
-      token,
-      expiresAt,
-      ipAddress,
-      userAgent,
-    });
-
-    return this.sessionRepository.save(session);
   }
 
   private async createVerificationToken(
