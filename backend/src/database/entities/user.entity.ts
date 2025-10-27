@@ -1,15 +1,8 @@
-import { Entity, Column, OneToMany, ManyToOne, Index } from 'typeorm';
+import { Entity, Column, OneToMany, OneToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Session } from './session.entity';
 import { Account } from './account.entity';
 import { Business } from './business.entity';
-
-export enum UserRole {
-  SUPER_ADMIN = 'super_admin',
-  BUSINESS_OWNER = 'business_owner',
-  BUSINESS_ADMIN = 'business_admin',
-  BUSINESS_STAFF = 'business_staff',
-}
 
 @Entity('users')
 @Index(['email'], { unique: true })
@@ -35,12 +28,9 @@ export class User extends BaseEntity {
   @Column({ type: 'boolean', default: false, name: 'phone_number_verified' })
   phoneNumberVerified: boolean;
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.BUSINESS_STAFF,
-  })
-  role: UserRole;
+  // SIMPLIFIED: Only super admin role remains (boolean instead of enum)
+  @Column({ type: 'boolean', default: false, name: 'is_super_admin' })
+  isSuperAdmin: boolean;
 
   @Column({ type: 'boolean', default: false, name: 'two_factor_enabled' })
   twoFactorEnabled: boolean;
@@ -51,8 +41,9 @@ export class User extends BaseEntity {
   @Column({ type: 'text', nullable: true, name: 'two_factor_backup_codes' })
   twoFactorBackupCodes: string; // JSON string of backup codes
 
-  // Business relationship
-  @ManyToOne(() => Business, (business) => business.users, { nullable: true })
+  // ONE-TO-ONE relationship with Business
+  @OneToOne(() => Business, (business) => business.user, { nullable: true })
+  @JoinColumn({ name: 'business_id' })
   business: Business;
 
   @Column({ type: 'uuid', nullable: true, name: 'business_id' })
