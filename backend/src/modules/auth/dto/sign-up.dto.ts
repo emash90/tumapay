@@ -1,5 +1,7 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Matches, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { CreateBusinessDto } from '../../business/dto/create-business.dto';
 
 export class SignUpDto {
   @ApiProperty({
@@ -48,4 +50,12 @@ export class SignUpDto {
   @IsOptional()
   @IsString()
   phoneNumber?: string;
+
+  @ApiProperty({
+    description: 'Business details (required for all users)',
+    type: CreateBusinessDto,
+  })
+  @ValidateNested()
+  @Type(() => CreateBusinessDto)
+  business: CreateBusinessDto;
 }

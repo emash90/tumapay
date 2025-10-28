@@ -8,11 +8,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
-import { User, UserRole } from '../../database/entities/user.entity';
+import { User } from '../../database/entities/user.entity';
 import { Account } from '../../database/entities/account.entity';
 import { Verification, VerificationType } from '../../database/entities/verification.entity';
 import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto } from './dto';
 import { SessionService } from './session.service';
+import { BusinessService } from '../business/business.service';
 
 @Injectable()
 export class AuthService {
@@ -24,13 +25,14 @@ export class AuthService {
     private sessionService: SessionService,
     @InjectRepository(Verification)
     private verificationRepository: Repository<Verification>,
+    private businessService: BusinessService,
   ) {}
 
   /**
-   * Register a new user
+   * Register a new user with business
    */
   async signUp(signUpDto: SignUpDto) {
-    const { email, password, firstName, lastName, phoneNumber } = signUpDto;
+    const { email, password, firstName, lastName, phoneNumber, business } = signUpDto;
 
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
@@ -41,14 +43,18 @@ export class AuthService {
       throw new ConflictException('User with this email already exists');
     }
 
-    // Create user
+    // Create business (validates KRA PIN and registration number uniqueness)
+    const createdBusiness = await this.businessService.createBusiness(business);
+
+    // Create user (new users are not super admins by default)
     const user = this.userRepository.create({
       email,
       firstName,
       lastName,
       phoneNumber,
-      role: UserRole.BUSINESS_STAFF,
+      isSuperAdmin: false,
       emailVerified: false,
+      businessId: createdBusiness.id, // Link business to user
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -75,9 +81,19 @@ export class AuthService {
 
     return {
       success: true,
-      message: 'User registered successfully. Please verify your email.',
+      message: 'User and business registered successfully. Please verify your email.',
       data: {
         user: this.sanitizeUser(savedUser),
+        business: {
+          id: createdBusiness.id,
+          businessName: createdBusiness.businessName,
+          registrationNumber: createdBusiness.registrationNumber,
+          country: createdBusiness.country,
+          kybStatus: createdBusiness.kybStatus,
+          tier: createdBusiness.tier,
+          dailyLimit: createdBusiness.dailyLimit,
+          monthlyLimit: createdBusiness.monthlyLimit,
+        },
         verificationToken, // Remove this in production
       },
     };
@@ -132,11 +148,24 @@ export class AuthService {
     user.lastLoginUserAgent = userAgent || null;
     const updatedUser = await this.userRepository.save(user);
 
+    // Fetch user's business
+    const business = await this.businessService.getBusinessByUserId(user.id);
+
     return {
       success: true,
       message: 'Signed in successfully',
       data: {
         user: this.sanitizeUser(updatedUser),
+        business: business ? {
+          id: business.id,
+          businessName: business.businessName,
+          registrationNumber: business.registrationNumber,
+          country: business.country,
+          kybStatus: business.kybStatus,
+          tier: business.tier,
+          dailyLimit: business.dailyLimit,
+          monthlyLimit: business.monthlyLimit,
+        } : null,
         session: {
           token: session.token,
           expiresAt: session.expiresAt,

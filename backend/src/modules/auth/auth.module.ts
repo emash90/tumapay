@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { SessionController } from './session.controller';
@@ -9,19 +9,19 @@ import { Account } from '../../database/entities/account.entity';
 import { Session } from '../../database/entities/session.entity';
 import { Verification } from '../../database/entities/verification.entity';
 import { AuthGuard } from '../../common/guards/auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { BusinessModule } from '../business/business.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Account, Session, Verification]),
+    forwardRef(() => BusinessModule),
   ],
   controllers: [AuthController, SessionController],
-  providers: [AuthService, SessionService, AuthGuard, RolesGuard],
+  providers: [AuthService, SessionService, AuthGuard],
   exports: [
     AuthService,
     SessionService,
     AuthGuard,
-    RolesGuard,
     TypeOrmModule,
   ],
 })

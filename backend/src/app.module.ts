@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { getDatabaseConfig } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
+import { BusinessModule } from './modules/business/business.module';
 import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { RedisModule } from './modules/redis/redis.module';
 
     // Feature modules
     AuthModule,
+    BusinessModule,
   ],
   controllers: [AppController],
   providers: [AppService],
