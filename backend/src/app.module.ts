@@ -7,6 +7,7 @@ import { getDatabaseConfig } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { BusinessModule } from './modules/business/business.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { MpesaModule } from './modules/mpesa/mpesa.module';
 import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
@@ -31,6 +32,7 @@ import { RedisModule } from './modules/redis/redis.module';
     AuthModule,
     BusinessModule,
     TransactionsModule,
+    MpesaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -126,4 +126,57 @@ export class TransactionsService {
       relations: ['business'],
     });
   }
+
+  /**
+   * Find transaction by provider transaction ID
+   */
+  async findByProviderTransactionId(providerTransactionId: string): Promise<Transaction | null> {
+    return await this.transactionRepository.findOne({
+      where: { providerTransactionId },
+      relations: ['business', 'user'],
+    });
+  }
+
+  /**
+   * Update transaction status and details
+   */
+  async updateTransactionStatus(
+    transactionId: string,
+    updateData: {
+      status?: TransactionStatus;
+      providerTransactionId?: string;
+      errorMessage?: string;
+      errorCode?: string;
+      completedAt?: Date;
+      failedAt?: Date;
+      metadata?: Record<string, any>;
+    },
+  ): Promise<Transaction> {
+    const transaction = await this.findById(transactionId);
+
+    // Update fields
+    if (updateData.status) {
+      transaction.status = updateData.status;
+    }
+    if (updateData.providerTransactionId) {
+      transaction.providerTransactionId = updateData.providerTransactionId;
+    }
+    if (updateData.errorMessage) {
+      transaction.errorMessage = updateData.errorMessage;
+    }
+    if (updateData.errorCode) {
+      transaction.errorCode = updateData.errorCode;
+    }
+    if (updateData.completedAt) {
+      transaction.completedAt = updateData.completedAt;
+    }
+    if (updateData.failedAt) {
+      transaction.failedAt = updateData.failedAt;
+    }
+    if (updateData.metadata) {
+      transaction.metadata = updateData.metadata;
+    }
+
+    return await this.transactionRepository.save(transaction);
+  }
 }
