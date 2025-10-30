@@ -9,6 +9,7 @@ import { BusinessModule } from './modules/business/business.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { MpesaModule } from './modules/mpesa/mpesa.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { RedisModule } from './modules/redis/redis.module';
     BusinessModule,
     TransactionsModule,
     MpesaModule,
+    WalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],
