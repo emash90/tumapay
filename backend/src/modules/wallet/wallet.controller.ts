@@ -21,6 +21,7 @@ import { Business } from '../../database/entities/business.entity';
 import { BusinessService } from '../business/business.service';
 import { WalletCurrency } from '../../database/entities/wallet.entity';
 import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
+import { CreateDepositDto } from './dto';
 
 @ApiTags('wallets')
 @Controller('wallets')
@@ -432,6 +433,62 @@ export class WalletController {
       success: true,
       message: 'Balance unlocked successfully',
       data: { wallet: updatedWallet },
+    };
+  }
+
+  @Post('deposit')
+  @UseGuards(BusinessVerifiedGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Deposit KES to wallet via M-Pesa',
+    description: 'Initiate M-Pesa STK Push to deposit funds to KES wallet. Requires verified business.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Deposit initiated successfully. User will receive M-Pesa prompt on their phone.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid amount or phone number',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Business not verified',
+  })
+  async depositToWallet(
+    @Body() createDepositDto: CreateDepositDto,
+    @CurrentUser() user: User,
+    @Req() request: Request & { business: Business },
+  ) {
+    const { amount, phoneNumber, description } = createDepositDto;
+
+    const result = await this.walletService.initiateDeposit(
+      request.business.id,
+      user.id,
+      amount,
+      phoneNumber,
+      description,
+    );
+
+    return {
+      success: true,
+      message: 'Deposit initiated. Please complete payment on your phone.',
+      data: {
+        transaction: {
+          id: result.transaction.id,
+          reference: result.transaction.reference,
+          amount: result.transaction.amount,
+          status: result.transaction.status,
+          currency: result.transaction.currency,
+          walletId: result.transaction.walletId,
+        },
+        checkoutRequestId: result.checkoutRequestId,
+        instructions: 'Enter your M-Pesa PIN on your phone to complete the payment',
+      },
     };
   }
 }

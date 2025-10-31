@@ -11,6 +11,9 @@ import {
   WalletTransaction,
   WalletTransactionType,
 } from '../../database/entities/wallet-transaction.entity';
+import { TransactionsService } from '../transactions/transactions.service';
+import { MpesaService } from '../mpesa/mpesa.service';
+import { Transaction, TransactionType } from '../../database/entities/transaction.entity';
 
 @Injectable()
 export class WalletService {
@@ -22,6 +25,8 @@ export class WalletService {
     @InjectRepository(WalletTransaction)
     private walletTransactionRepository: Repository<WalletTransaction>,
     private dataSource: DataSource,
+    private transactionsService: TransactionsService,
+    private mpesaService: MpesaService,
   ) {}
 
   /**
@@ -331,5 +336,80 @@ export class WalletService {
 
       return wallet;
     });
+  }
+
+  /**
+   * Initiate wallet deposit via M-Pesa STK Push
+   */
+  async initiateDeposit(
+    businessId: string,
+    userId: string,
+    amount: number,
+    phoneNumber: string,
+    description?: string,
+  ): Promise<{ transaction: Transaction; checkoutRequestId: string }> {
+    this.logger.log(
+      `Initiating deposit: ${amount} KES for business ${businessId}`,
+    );
+
+    // 1. Get or create KES wallet
+    const wallet = await this.getOrCreateWallet(businessId, WalletCurrency.KES);
+
+    // 2. Create transaction record (COLLECTION type, PENDING status)
+    const transaction = await this.transactionsService.createTransaction(
+      {
+        type: TransactionType.COLLECTION,
+        amount,
+        currency: 'KES',
+        recipientPhone: phoneNumber,
+        description: description || 'Wallet deposit via M-Pesa',
+      },
+      businessId,
+      userId,
+    );
+
+    this.logger.log(`Transaction created: ${transaction.reference}`);
+
+    try {
+      // 3. Update transaction with wallet association
+      transaction.walletId = wallet.id;
+      transaction.walletCurrency = WalletCurrency.KES;
+      await this.dataSource.manager.save(Transaction, transaction);
+
+      // 4. Initiate M-Pesa STK Push
+      const stkPushResponse = await this.mpesaService.stkPush(
+        {
+          phoneNumber,
+          amount,
+          accountReference: transaction.reference,
+          transactionDesc: `Deposit to TumaPay wallet`,
+        },
+        transaction.id,
+      );
+
+      this.logger.log(
+        `STK Push initiated: ${stkPushResponse.CheckoutRequestID}`,
+      );
+
+      // 5. Store M-Pesa provider transaction ID
+      transaction.providerTransactionId = stkPushResponse.CheckoutRequestID;
+      transaction.providerName = 'mpesa';
+      await this.dataSource.manager.save(Transaction, transaction);
+
+      return {
+        transaction,
+        checkoutRequestId: stkPushResponse.CheckoutRequestID,
+      };
+    } catch (error) {
+      this.logger.error('Failed to initiate STK Push', error);
+
+      // Update transaction status to failed
+      transaction.status = 'failed' as any;
+      transaction.errorMessage = error.message || 'Failed to initiate M-Pesa payment';
+      transaction.failedAt = new Date();
+      await this.dataSource.manager.save(Transaction, transaction);
+
+      throw error;
+    }
   }
 }
