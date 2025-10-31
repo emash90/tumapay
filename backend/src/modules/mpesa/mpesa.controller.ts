@@ -1,8 +1,10 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { MpesaCallbackDto } from './dto';
 import { TransactionsService } from '../transactions/transactions.service';
+import { WalletService } from '../wallet/wallet.service';
 import { TransactionStatus } from '../../database/entities/transaction.entity';
+import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
 import {
   MpesaStkPushCallbackResponse,
   MpesaB2CCallbackResponse,
@@ -13,7 +15,11 @@ import {
 export class MpesaController {
   private readonly logger = new Logger(MpesaController.name);
 
-  constructor(private transactionsService: TransactionsService) {}
+  constructor(
+    private transactionsService: TransactionsService,
+    @Inject(forwardRef(() => WalletService))
+    private walletService: WalletService,
+  ) {}
 
   /**
    * M-Pesa STK Push callback handler
@@ -58,6 +64,34 @@ export class MpesaController {
           ?.Value as string;
         const amount = metadata.find((item) => item.Name === 'Amount')?.Value as number;
         const phoneNumber = metadata.find((item) => item.Name === 'PhoneNumber')?.Value as string;
+
+        // If transaction has walletId, credit the wallet
+        if (transaction.walletId) {
+          try {
+            await this.walletService.creditWallet(
+              transaction.walletId,
+              transaction.amount,
+              WalletTransactionType.DEPOSIT,
+              `M-Pesa deposit - ${transaction.reference}`,
+              transaction.id,
+              {
+                mpesaCheckoutRequestId: CheckoutRequestID,
+                mpesaReceiptNumber,
+                phoneNumber,
+              },
+            );
+
+            this.logger.log(
+              `Wallet ${transaction.walletId} credited with ${transaction.amount} ${transaction.walletCurrency}`,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Failed to credit wallet ${transaction.walletId}`,
+              error,
+            );
+            // Continue to update transaction status even if wallet credit fails
+          }
+        }
 
         // Update transaction to completed
         await this.transactionsService.updateTransactionStatus(transaction.id, {

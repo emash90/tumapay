@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WalletService } from './wallet.service';
 import { WalletController } from './wallet.controller';
@@ -15,7 +15,7 @@ import { MpesaModule } from '../mpesa/mpesa.module';
     AuthModule,
     BusinessModule,
     TransactionsModule,
-    MpesaModule,
+    forwardRef(() => MpesaModule), // Use forwardRef to resolve circular dependency
   ],
   controllers: [WalletController],
   providers: [WalletService],
