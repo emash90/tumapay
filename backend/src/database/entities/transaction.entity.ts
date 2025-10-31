@@ -2,6 +2,7 @@ import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Business } from './business.entity';
 import { User } from './user.entity';
+import { Wallet } from './wallet.entity';
 
 export enum TransactionType {
   PAYOUT = 'payout',           // Business sends money to customer
@@ -128,4 +129,16 @@ export class Transaction extends BaseEntity {
   // Last retry timestamp
   @Column({ type: 'timestamp', nullable: true, name: 'last_retry_at' })
   lastRetryAt: Date | null;
+
+  // Wallet association (for deposit/withdrawal tracking)
+  @Column({ name: 'wallet_id', nullable: true })
+  walletId: string | null;
+
+  @ManyToOne(() => Wallet, { nullable: true })
+  @JoinColumn({ name: 'wallet_id' })
+  wallet: Wallet | null;
+
+  // Wallet currency at time of transaction
+  @Column({ name: 'wallet_currency', type: 'varchar', length: 10, nullable: true })
+  walletCurrency: string | null;
 }
