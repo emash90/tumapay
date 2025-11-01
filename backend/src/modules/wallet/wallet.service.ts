@@ -415,4 +415,140 @@ export class WalletService {
       throw error;
     }
   }
+
+  /**
+   * Initiate wallet withdrawal via M-Pesa B2C
+   */
+  async initiateWithdrawal(
+    walletId: string,
+    businessId: string,
+    userId: string,
+    amount: number,
+    phoneNumber: string,
+    description?: string,
+  ): Promise<{ transaction: Transaction; conversationId: string }> {
+    this.logger.log(
+      `Initiating withdrawal: ${amount} KES from wallet ${walletId} for business ${businessId}`,
+    );
+
+    // 1. Get and validate wallet
+    const wallet = await this.getWalletById(walletId);
+
+    // Verify wallet belongs to business
+    if (wallet.businessId !== businessId) {
+      throw new BadRequestException('Wallet does not belong to this business');
+    }
+
+    // Verify wallet is active
+    if (!wallet.isActive) {
+      throw new BadRequestException('Wallet is not active');
+    }
+
+    // Verify sufficient balance (this will throw if insufficient)
+    if (Number(wallet.availableBalance) < Number(amount)) {
+      throw new BadRequestException(
+        `Insufficient wallet balance. Available: ${wallet.availableBalance} ${wallet.currency}, Required: ${amount} ${wallet.currency}`,
+      );
+    }
+
+    // 2. Create transaction record (PAYOUT type, PENDING status)
+    const transaction = await this.transactionsService.createTransaction(
+      {
+        type: TransactionType.PAYOUT,
+        amount,
+        currency: wallet.currency,
+        recipientPhone: phoneNumber,
+        description: description || 'Wallet withdrawal via M-Pesa',
+      },
+      businessId,
+      userId,
+    );
+
+    this.logger.log(`Withdrawal transaction created: ${transaction.reference}`);
+
+    try {
+      // 3. Update transaction with wallet association
+      transaction.walletId = wallet.id;
+      transaction.walletCurrency = wallet.currency;
+      await this.dataSource.manager.save(Transaction, transaction);
+
+      // 4. Debit wallet (atomic operation)
+      await this.debitWallet(
+        walletId,
+        amount,
+        WalletTransactionType.WITHDRAWAL,
+        `Withdrawal - ${transaction.reference}`,
+        transaction.id,
+        {
+          transactionReference: transaction.reference,
+          phoneNumber,
+        },
+      );
+
+      this.logger.log(`Wallet ${walletId} debited: ${amount} ${wallet.currency}`);
+
+      // 5. Initiate M-Pesa B2C Payment
+      const b2cResponse = await this.mpesaService.b2cPayment(
+        {
+          phoneNumber,
+          amount,
+          commandId: 'BusinessPayment' as any,
+          remarks: description || 'Wallet withdrawal',
+          occasion: 'Withdrawal',
+        },
+        transaction.id,
+      );
+
+      this.logger.log(
+        `B2C payment initiated: ${b2cResponse.ConversationID}`,
+      );
+
+      // 6. Store M-Pesa provider transaction ID
+      transaction.providerTransactionId = b2cResponse.ConversationID;
+      transaction.providerName = 'mpesa';
+      await this.dataSource.manager.save(Transaction, transaction);
+
+      return {
+        transaction,
+        conversationId: b2cResponse.ConversationID,
+      };
+    } catch (error) {
+      this.logger.error('Failed to initiate withdrawal', error);
+
+      // Credit wallet back if B2C initiation failed
+      try {
+        await this.creditWallet(
+          walletId,
+          amount,
+          WalletTransactionType.REVERSAL,
+          `Withdrawal failed - ${error.message}`,
+          transaction.id,
+          {
+            originalTransactionId: transaction.id,
+            errorMessage: error.message,
+            reversalReason: 'B2C initiation failed',
+          },
+        );
+
+        this.logger.log(
+          `Wallet ${walletId} credited back: ${amount} ${wallet.currency} due to B2C failure`,
+        );
+      } catch (reversalError) {
+        this.logger.error(
+          `CRITICAL: Failed to credit wallet back for failed withdrawal ${transaction.reference}`,
+          reversalError,
+        );
+        // This is critical - the money is debited but B2C failed
+        // Manual intervention required
+      }
+
+      // Update transaction status to failed
+      transaction.status = 'failed' as any;
+      transaction.errorMessage = error.message || 'Failed to initiate M-Pesa B2C payment';
+      transaction.failedAt = new Date();
+      await this.dataSource.manager.save(Transaction, transaction);
+
+      throw error;
+    }
+  }
 }
