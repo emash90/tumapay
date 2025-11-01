@@ -220,4 +220,18 @@ export class BusinessService {
       page,
     };
   }
+
+  /**
+   * TEMPORARY: Manually verify business for testing purposes
+   * TODO: Remove this method in production
+   */
+  async verifyBusinessManually(businessId: string): Promise<Business> {
+    const business = await this.getBusinessById(businessId);
+
+    business.kybStatus = BusinessKYBStatus.VERIFIED;
+    business.kybVerifiedAt = new Date();
+    business.kybProviderId = 'MANUAL_VERIFICATION_TEST';
+
+    return await this.businessRepository.save(business);
+  }
 }

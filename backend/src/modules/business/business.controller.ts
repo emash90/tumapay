@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Put,
+  Post,
   Delete,
   Body,
   HttpCode,
@@ -116,6 +117,49 @@ export class BusinessController {
     return {
       success: true,
       message: 'Business deleted successfully',
+    };
+  }
+
+  /**
+   * TEMPORARY: Manual verification endpoint for testing
+   * TODO: Remove this endpoint before production deployment
+   */
+  @Post('me/verify-manual')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '[TESTING ONLY] Manually verify business KYB status',
+    description: 'TEMPORARY endpoint to manually verify business KYB status for testing purposes. Bypasses KYB provider verification. MUST BE REMOVED BEFORE PRODUCTION.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Business verified successfully',
+    type: BusinessResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Business not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  async verifyBusinessManually(@CurrentUser() user: User) {
+    const business = await this.businessService.getBusinessByUserId(user.id);
+
+    if (!business) {
+      throw new NotFoundException(
+        'No business profile found for this user. Please contact support.',
+      );
+    }
+
+    const verifiedBusiness = await this.businessService.verifyBusinessManually(
+      business.id,
+    );
+
+    return {
+      success: true,
+      message: 'Business verified manually (TESTING ONLY)',
+      data: { business: verifiedBusiness },
     };
   }
 }
