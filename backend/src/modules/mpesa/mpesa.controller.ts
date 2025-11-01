@@ -199,7 +199,38 @@ export class MpesaController {
           `Transaction ${transaction.reference} completed successfully. TransactionID: ${TransactionID}`,
         );
       } else {
-        // Payment failed
+        // Payment failed - need to reverse wallet debit if this was a withdrawal
+        if (transaction.walletId) {
+          try {
+            await this.walletService.creditWallet(
+              transaction.walletId,
+              transaction.amount,
+              WalletTransactionType.REVERSAL,
+              `Withdrawal reversal - ${ResultDesc}`,
+              transaction.id,
+              {
+                originalTransactionId: transaction.id,
+                mpesaResultCode: ResultCode,
+                mpesaResultDesc: ResultDesc,
+                mpesaConversationId: ConversationID,
+                mpesaTransactionId: TransactionID,
+              },
+            );
+
+            this.logger.log(
+              `Wallet ${transaction.walletId} credited back ${transaction.amount} ${transaction.walletCurrency} due to failed B2C withdrawal`,
+            );
+          } catch (error) {
+            this.logger.error(
+              `CRITICAL: Failed to credit wallet back for failed withdrawal ${transaction.reference}`,
+              error,
+            );
+            // This is critical - the money is debited but B2C failed and reversal failed
+            // Manual intervention required
+          }
+        }
+
+        // Update transaction to failed
         await this.transactionsService.updateTransactionStatus(transaction.id, {
           status: TransactionStatus.FAILED,
           errorMessage: ResultDesc,
