@@ -21,7 +21,7 @@ import { Business } from '../../database/entities/business.entity';
 import { BusinessService } from '../business/business.service';
 import { WalletCurrency } from '../../database/entities/wallet.entity';
 import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
-import { CreateDepositDto } from './dto';
+import { CreateDepositDto, CreateWithdrawalDto } from './dto';
 
 @ApiTags('wallets')
 @Controller('wallets')
@@ -488,6 +488,78 @@ export class WalletController {
         },
         checkoutRequestId: result.checkoutRequestId,
         instructions: 'Enter your M-Pesa PIN on your phone to complete the payment',
+      },
+    };
+  }
+
+  @Post(':walletId/withdraw')
+  @UseGuards(BusinessVerifiedGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Withdraw funds from wallet to M-Pesa',
+    description: 'Initiate withdrawal from KES wallet to M-Pesa account via B2C payment. Requires verified business.',
+  })
+  @ApiParam({ name: 'walletId', description: 'Wallet UUID to withdraw from' })
+  @ApiResponse({
+    status: 201,
+    description: 'Withdrawal initiated successfully. Funds will be sent to M-Pesa shortly.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid amount, phone number, or insufficient balance',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Business not verified or wallet does not belong to business',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Wallet not found',
+  })
+  async withdrawFromWallet(
+    @Param('walletId') walletId: string,
+    @Body() createWithdrawalDto: CreateWithdrawalDto,
+    @CurrentUser() user: User,
+    @Req() request: Request & { business: Business },
+  ) {
+    const { amount, phoneNumber, description } = createWithdrawalDto;
+
+    // Get wallet to verify ownership before processing
+    const wallet = await this.walletService.getWalletById(walletId);
+
+    // Authorization check - wallet must belong to user's business
+    if (wallet.businessId !== request.business.id) {
+      throw new ForbiddenException('You do not have permission to withdraw from this wallet');
+    }
+
+    const result = await this.walletService.initiateWithdrawal(
+      walletId,
+      request.business.id,
+      user.id,
+      amount,
+      phoneNumber,
+      description,
+    );
+
+    return {
+      success: true,
+      message: 'Withdrawal initiated. Funds will be sent to your M-Pesa shortly.',
+      data: {
+        transaction: {
+          id: result.transaction.id,
+          reference: result.transaction.reference,
+          amount: result.transaction.amount,
+          status: result.transaction.status,
+          currency: result.transaction.currency,
+          walletId: result.transaction.walletId,
+        },
+        conversationId: result.conversationId,
+        estimatedTime: '5 minutes',
+        instructions: 'You will receive an M-Pesa SMS confirmation shortly',
       },
     };
   }
