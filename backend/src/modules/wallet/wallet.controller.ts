@@ -10,6 +10,7 @@ import {
   ForbiddenException,
   Req,
   Query,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { WalletService } from './wallet.service';
@@ -22,15 +23,19 @@ import { BusinessService } from '../business/business.service';
 import { WalletCurrency } from '../../database/entities/wallet.entity';
 import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
 import { CreateDepositDto, CreateWithdrawalDto } from './dto';
+import { WithdrawalLimitsService } from './services/withdrawal-limits.service';
 
 @ApiTags('wallets')
 @Controller('wallets')
 @UseGuards(AuthGuard)
 @ApiBearerAuth('bearer')
 export class WalletController {
+  private readonly logger = new Logger(WalletController.name);
+
   constructor(
     private walletService: WalletService,
     private businessService: BusinessService,
+    private withdrawalLimitsService: WithdrawalLimitsService,
   ) {}
 
   @Get()
@@ -66,47 +71,6 @@ export class WalletController {
     return {
       success: true,
       data: { wallets },
-    };
-  }
-
-  @Get(':walletId')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Get wallet by ID',
-    description: 'Retrieve a specific wallet by its ID',
-  })
-  @ApiParam({ name: 'walletId', description: 'Wallet UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Wallet retrieved successfully',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - not your wallet',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Wallet not found',
-  })
-  async getWallet(
-    @Param('walletId') walletId: string,
-    @CurrentUser() user: User,
-  ) {
-    const wallet = await this.walletService.getWalletById(walletId);
-    const business = await this.businessService.getBusinessByUserId(user.id);
-
-    // Authorization check - only business owner or super admin can view
-    if (wallet.businessId !== business?.id && !user.isSuperAdmin) {
-      throw new ForbiddenException('You do not have permission to view this wallet');
-    }
-
-    return {
-      success: true,
-      data: { wallet },
     };
   }
 
@@ -152,6 +116,115 @@ export class WalletController {
         currency,
         availableBalance: balance,
       },
+    };
+  }
+
+  @Get('withdrawal-limits')
+  @UseGuards(BusinessVerifiedGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get withdrawal limits for business',
+    description: 'Retrieve withdrawal limits, daily/monthly usage, and business tier information',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Withdrawal limits retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Business not verified',
+  })
+  async getWithdrawalLimits(
+    @Req() request: Request & { business: Business },
+  ) {
+    try {
+      const business = request.business;
+
+      this.logger.log(`Getting withdrawal limits for business: ${business?.id || 'undefined'}`);
+
+      if (!business) {
+        throw new ForbiddenException('Business information not available');
+      }
+
+      // Default to BASIC tier if tier is not set
+      const businessTier = business.tier || 'basic';
+      this.logger.log(`Business tier: ${businessTier}`);
+
+      // Get tier-based limits
+      const limits = this.withdrawalLimitsService.getWithdrawalLimits(businessTier as any);
+
+      // Get current usage
+      const dailyTotal = await this.withdrawalLimitsService.getDailyWithdrawalTotal(business.id);
+      const monthlyTotal = await this.withdrawalLimitsService.getMonthlyWithdrawalTotal(business.id);
+      const pendingCount = await this.withdrawalLimitsService.getPendingWithdrawalCount(business.id);
+
+      this.logger.log(`Usage - Daily: ${dailyTotal}, Monthly: ${monthlyTotal}, Pending: ${pendingCount}`);
+
+      return {
+        success: true,
+        data: {
+          tier: businessTier,
+          limits: {
+            ...limits,
+            monthlyLimit: Number(business.monthlyLimit || 0),
+          },
+          usage: {
+            dailyTotal: Number(dailyTotal),
+            dailyRemaining: Math.max(0, limits.dailyLimit - Number(dailyTotal)),
+            monthlyTotal: Number(monthlyTotal),
+            monthlyRemaining: Math.max(0, Number(business.monthlyLimit || 0) - Number(monthlyTotal)),
+            pendingWithdrawals: pendingCount,
+          },
+        },
+      };
+    } catch (error) {
+      this.logger.error('Error in getWithdrawalLimits:', error.stack || error);
+      throw error;
+    }
+  }
+
+  @Get(':walletId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get wallet by ID',
+    description: 'Retrieve a specific wallet by its ID',
+  })
+  @ApiParam({ name: 'walletId', description: 'Wallet UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Wallet retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - not your wallet',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Wallet not found',
+  })
+  async getWallet(
+    @Param('walletId') walletId: string,
+    @CurrentUser() user: User,
+  ) {
+    const wallet = await this.walletService.getWalletById(walletId);
+    const business = await this.businessService.getBusinessByUserId(user.id);
+
+    // Authorization check - only business owner or super admin can view
+    if (wallet.businessId !== business?.id && !user.isSuperAdmin) {
+      throw new ForbiddenException('You do not have permission to view this wallet');
+    }
+
+    return {
+      success: true,
+      data: { wallet },
     };
   }
 
@@ -538,7 +611,7 @@ export class WalletController {
 
     const result = await this.walletService.initiateWithdrawal(
       walletId,
-      request.business.id,
+      request.business,
       user.id,
       amount,
       phoneNumber,

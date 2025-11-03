@@ -200,6 +200,31 @@ export class MpesaService {
    */
   async b2cPayment(b2cDto: B2CDto, transactionId: string): Promise<MpesaB2CResponse> {
     try {
+      // Check if B2C sandbox bypass is enabled
+      const bypassSandbox = this.configService.get<string>('MPESA_B2C_BYPASS_SANDBOX', 'false') === 'true';
+
+      if (this.environment === 'sandbox' && bypassSandbox) {
+        // Simulate successful B2C payment in sandbox mode
+        this.logger.warn(`⚠️  Sandbox bypass mode enabled - Simulating B2C payment for transaction ${transactionId}`);
+
+        const simulatedResponse: MpesaB2CResponse = {
+          ConversationID: `SIM_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+          OriginatorConversationID: `SIM_ORIG_${Date.now()}`,
+          ResponseCode: '0',
+          ResponseDescription: 'Accept the service request successfully (Simulated)',
+        };
+
+        this.logger.log(`Simulated B2C payment initiated: ${simulatedResponse.ConversationID}`);
+
+        // Simulate callback after 2 seconds
+        setTimeout(() => {
+          this.simulateB2CCallback(simulatedResponse.ConversationID, b2cDto.amount, b2cDto.phoneNumber);
+        }, 2000);
+
+        return simulatedResponse;
+      }
+
+      // Real M-Pesa API call
       const accessToken = await this.getAccessToken();
       const phoneNumber = this.formatPhoneNumber(b2cDto.phoneNumber);
       const securityCredential = this.generateSecurityCredential();
@@ -238,6 +263,82 @@ export class MpesaService {
       throw new BadRequestException(
         error.response?.data?.errorMessage || 'Failed to initiate B2C payment',
       );
+    }
+  }
+
+  /**
+   * Simulate B2C callback for sandbox testing
+   */
+  private async simulateB2CCallback(conversationId: string, amount: number, phoneNumber: string) {
+    try {
+      const callbackUrl = this.configService.get<string>('MPESA_CALLBACK_URL', 'http://localhost:3000/api/v1');
+      const transactionId = `SIM${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      const simulatedCallback = {
+        Result: {
+          ResultType: 0,
+          ResultCode: 0,
+          ResultDesc: 'The service request is processed successfully (Simulated)',
+          OriginatorConversationID: conversationId,
+          ConversationID: conversationId,
+          TransactionID: transactionId,
+          ResultParameters: {
+            ResultParameter: [
+              {
+                Key: 'TransactionAmount',
+                Value: amount,
+              },
+              {
+                Key: 'TransactionReceipt',
+                Value: transactionId,
+              },
+              {
+                Key: 'ReceiverPartyPublicName',
+                Value: phoneNumber,
+              },
+              {
+                Key: 'TransactionCompletedDateTime',
+                Value: new Date().toISOString(),
+              },
+              {
+                Key: 'B2CUtilityAccountAvailableFunds',
+                Value: 10000.00,
+              },
+              {
+                Key: 'B2CWorkingAccountAvailableFunds',
+                Value: 50000.00,
+              },
+              {
+                Key: 'B2CRecipientIsRegisteredCustomer',
+                Value: 'Y',
+              },
+              {
+                Key: 'B2CChargesPaidAccountAvailableFunds',
+                Value: 0.00,
+              },
+            ],
+          },
+          ReferenceData: {
+            ReferenceItem: {
+              Key: 'QueueTimeoutURL',
+              Value: `${callbackUrl}/mpesa/callback/b2c/timeout`,
+            },
+          },
+        },
+      };
+
+      this.logger.log(`Simulating B2C success callback for ${conversationId}`);
+
+      // Send callback to our own endpoint
+      await axios.post(`${callbackUrl}/mpesa/callback/b2c/result`, simulatedCallback, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      this.logger.log(`Simulated callback sent successfully for ${conversationId}`);
+    } catch (error) {
+      this.logger.error('Failed to send simulated B2C callback', error.message);
     }
   }
 

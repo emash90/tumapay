@@ -16,6 +16,8 @@ import {
 import { TransactionsService } from '../transactions/transactions.service';
 import { MpesaService } from '../mpesa/mpesa.service';
 import { Transaction, TransactionType } from '../../database/entities/transaction.entity';
+import { WithdrawalLimitsService } from './services/withdrawal-limits.service';
+import { Business } from '../../database/entities/business.entity';
 
 @Injectable()
 export class WalletService {
@@ -30,6 +32,7 @@ export class WalletService {
     private transactionsService: TransactionsService,
     @Inject(forwardRef(() => MpesaService))
     private mpesaService: MpesaService,
+    private withdrawalLimitsService: WithdrawalLimitsService,
   ) {}
 
   /**
@@ -421,21 +424,21 @@ export class WalletService {
    */
   async initiateWithdrawal(
     walletId: string,
-    businessId: string,
+    business: Business,
     userId: string,
     amount: number,
     phoneNumber: string,
     description?: string,
   ): Promise<{ transaction: Transaction; conversationId: string }> {
     this.logger.log(
-      `Initiating withdrawal: ${amount} KES from wallet ${walletId} for business ${businessId}`,
+      `Initiating withdrawal: ${amount} KES from wallet ${walletId} for business ${business.id}`,
     );
 
     // 1. Get and validate wallet
     const wallet = await this.getWalletById(walletId);
 
     // Verify wallet belongs to business
-    if (wallet.businessId !== businessId) {
+    if (wallet.businessId !== business.id) {
       throw new BadRequestException('Wallet does not belong to this business');
     }
 
@@ -451,7 +454,10 @@ export class WalletService {
       );
     }
 
-    // 2. Create transaction record (PAYOUT type, PENDING status)
+    // 2. Validate withdrawal limits and business rules
+    await this.withdrawalLimitsService.validateWithdrawal(business, wallet, amount);
+
+    // 3. Create transaction record (PAYOUT type, PENDING status)
     const transaction = await this.transactionsService.createTransaction(
       {
         type: TransactionType.PAYOUT,
@@ -460,7 +466,7 @@ export class WalletService {
         recipientPhone: phoneNumber,
         description: description || 'Wallet withdrawal via M-Pesa',
       },
-      businessId,
+      business.id,
       userId,
     );
 
@@ -488,11 +494,12 @@ export class WalletService {
       this.logger.log(`Wallet ${walletId} debited: ${amount} ${wallet.currency}`);
 
       // 5. Initiate M-Pesa B2C Payment
+      // Use SalaryPayment for sandbox compatibility
       const b2cResponse = await this.mpesaService.b2cPayment(
         {
           phoneNumber,
           amount,
-          commandId: 'BusinessPayment' as any,
+          commandId: 'SalaryPayment' as any, // SalaryPayment works in sandbox
           remarks: description || 'Wallet withdrawal',
           occasion: 'Withdrawal',
         },
