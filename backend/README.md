@@ -1,29 +1,39 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# TumaPay Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Multi-currency digital wallet and payment processing platform built with NestJS.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 📚 Documentation
+
+**📖 [Complete Documentation](docs/README.md)** - Start here for all documentation
+
+### Quick Links
+- **[Quick Start Guide](docs/QUICK_START_GUIDE.md)** - 10 minute overview
+- **[Complete Architecture Guide](docs/COMPLETE_ARCHITECTURE_GUIDE.md)** - Full system reference
+- **[Documentation Index](docs/DOCUMENTATION_INDEX.md)** - Find anything quickly
+
+## 🚀 Features
+
+- 💰 Multi-currency wallet system (KES, USDT, TRY, USD)
+- 📱 M-Pesa integration (STK Push deposits, B2C withdrawals)
+- 🔄 Payment provider abstraction (ready for ABSA, Stripe, etc.)
+- 🔒 Atomic operations with pessimistic locking
+- ↩️ Automatic reversal on failed withdrawals
+- 📊 Business tier system with withdrawal limits
+- 🔐 JWT authentication with session management
+- 📝 Complete audit trail via transaction ledger
+
+## 🏗️ Tech Stack
+
+- **Framework**: NestJS (Node.js/TypeScript)
+- **Database**: PostgreSQL with TypeORM
+- **Cache**: Redis
+- **Payment**: M-Pesa API
+- **Auth**: JWT with Passport
+- **API Docs**: Swagger/OpenAPI
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+TumaPay backend API - A production-ready digital wallet and payment processing platform.
 
 ## Project setup
 

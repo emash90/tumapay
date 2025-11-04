@@ -1,6 +1,5 @@
 import { Controller, Post, Body, HttpCode, HttpStatus, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { MpesaCallbackDto } from './dto';
 import { TransactionsService } from '../transactions/transactions.service';
 import { WalletService } from '../wallet/wallet.service';
 import { TransactionStatus } from '../../database/entities/transaction.entity';
@@ -10,6 +9,26 @@ import {
   MpesaB2CCallbackResponse,
 } from './interfaces/mpesa-response.interface';
 
+/**
+ * @deprecated This controller is kept for backward compatibility with existing M-Pesa webhook configurations.
+ *
+ * The payment provider abstraction layer now uses PaymentProvidersController for all callbacks.
+ * New endpoints: /payment-providers/callback/mpesa/stk and /payment-providers/callback/mpesa/b2c
+ *
+ * TODO: Migration steps to remove this controller:
+ * 1. Update MpesaService to use new callback URLs (/payment-providers/callback/mpesa/*)
+ * 2. Migrate callback processing logic to PaymentProvidersController or provider-specific handlers
+ * 3. Update M-Pesa portal webhook configurations to new endpoints
+ * 4. Test new endpoints thoroughly
+ * 5. Remove this controller and its registration from mpesa.module.ts
+ *
+ * IMPORTANT: This controller contains critical business logic:
+ * - Wallet crediting on successful deposits
+ * - Transaction status updates
+ * - Automatic wallet reversal on failed withdrawals
+ *
+ * Do NOT remove until all logic is migrated and tested.
+ */
 @ApiTags('mpesa-webhooks')
 @Controller('mpesa/callback')
 export class MpesaController {

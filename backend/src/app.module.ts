@@ -7,9 +7,9 @@ import { getDatabaseConfig } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { BusinessModule } from './modules/business/business.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
-import { MpesaModule } from './modules/mpesa/mpesa.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { WalletModule } from './modules/wallet/wallet.module';
+import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
 
 @Module({
   imports: [
@@ -33,7 +33,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
     AuthModule,
     BusinessModule,
     TransactionsModule,
-    MpesaModule,
+    PaymentProvidersModule,
     WalletModule,
   ],
   controllers: [AppController],

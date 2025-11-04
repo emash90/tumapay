@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WalletService } from './wallet.service';
 import { WalletController } from './wallet.controller';
@@ -8,7 +8,7 @@ import { Transaction } from '../../database/entities/transaction.entity';
 import { AuthModule } from '../auth/auth.module';
 import { BusinessModule } from '../business/business.module';
 import { TransactionsModule } from '../transactions/transactions.module';
-import { MpesaModule } from '../mpesa/mpesa.module';
+import { PaymentProvidersModule } from '../payment-providers/payment-providers.module';
 import { WithdrawalLimitsService } from './services/withdrawal-limits.service';
 
 @Module({
@@ -17,7 +17,7 @@ import { WithdrawalLimitsService } from './services/withdrawal-limits.service';
     AuthModule,
     BusinessModule,
     TransactionsModule,
-    forwardRef(() => MpesaModule), // Use forwardRef to resolve circular dependency
+    PaymentProvidersModule, // Use payment providers abstraction layer
   ],
   controllers: [WalletController],
   providers: [WalletService, WithdrawalLimitsService],

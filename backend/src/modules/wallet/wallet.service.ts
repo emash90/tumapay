@@ -3,8 +3,6 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -14,10 +12,16 @@ import {
   WalletTransactionType,
 } from '../../database/entities/wallet-transaction.entity';
 import { TransactionsService } from '../transactions/transactions.service';
-import { MpesaService } from '../mpesa/mpesa.service';
 import { Transaction, TransactionType } from '../../database/entities/transaction.entity';
 import { WithdrawalLimitsService } from './services/withdrawal-limits.service';
 import { Business } from '../../database/entities/business.entity';
+import { PaymentMethod } from '../payment-providers/enums/payment-method.enum';
+import { PaymentProviderConfig } from '../payment-providers/dto/payment-provider-config.dto';
+import {
+  ProviderSelectionService,
+  ProviderSelectionCriteria,
+} from '../payment-providers/services/provider-selection.service';
+import { ProviderTransactionType } from '../payment-providers/interfaces/provider-capabilities.interface';
 
 @Injectable()
 export class WalletService {
@@ -30,8 +34,7 @@ export class WalletService {
     private walletTransactionRepository: Repository<WalletTransaction>,
     private dataSource: DataSource,
     private transactionsService: TransactionsService,
-    @Inject(forwardRef(() => MpesaService))
-    private mpesaService: MpesaService,
+    private providerSelectionService: ProviderSelectionService,
     private withdrawalLimitsService: WithdrawalLimitsService,
   ) {}
 
@@ -345,15 +348,23 @@ export class WalletService {
   }
 
   /**
-   * Initiate wallet deposit via M-Pesa STK Push
+   * Initiate wallet deposit via payment provider
+   * Uses intelligent provider selection based on currency, amount, and preferences
    */
   async initiateDeposit(
     businessId: string,
     userId: string,
     amount: number,
-    phoneNumber: string,
+    phoneNumber?: string,
     description?: string,
-  ): Promise<{ transaction: Transaction; checkoutRequestId: string }> {
+    preferredPaymentMethod?: PaymentMethod,
+    bankDetails?: {
+      accountNumber?: string;
+      accountHolderName?: string;
+      bankName?: string;
+      bankBranch?: string;
+    },
+  ): Promise<{ transaction: Transaction; providerTransactionId: string }> {
     this.logger.log(
       `Initiating deposit: ${amount} KES for business ${businessId}`,
     );
@@ -367,8 +378,8 @@ export class WalletService {
         type: TransactionType.COLLECTION,
         amount,
         currency: 'KES',
-        recipientPhone: phoneNumber,
-        description: description || 'Wallet deposit via M-Pesa',
+        recipientPhone: phoneNumber || undefined,
+        description: description || 'Wallet deposit',
       },
       businessId,
       userId,
@@ -382,36 +393,62 @@ export class WalletService {
       transaction.walletCurrency = WalletCurrency.KES;
       await this.dataSource.manager.save(Transaction, transaction);
 
-      // 4. Initiate M-Pesa STK Push
-      const stkPushResponse = await this.mpesaService.stkPush(
-        {
-          phoneNumber,
-          amount,
-          accountReference: transaction.reference,
-          transactionDesc: `Deposit to TumaPay wallet`,
-        },
-        transaction.id,
-      );
+      // 4. Select best payment provider intelligently
+      const selectionCriteria: ProviderSelectionCriteria = {
+        currency: 'KES',
+        transactionType: ProviderTransactionType.DEPOSIT,
+        amount,
+        preferredProvider: preferredPaymentMethod,
+        businessId,
+      };
+
+      const selection = this.providerSelectionService.selectProvider(selectionCriteria);
 
       this.logger.log(
-        `STK Push initiated: ${stkPushResponse.CheckoutRequestID}`,
+        `Selected provider: ${selection.paymentMethod} - ${selection.selectionReason}`,
       );
 
-      // 5. Store M-Pesa provider transaction ID
-      transaction.providerTransactionId = stkPushResponse.CheckoutRequestID;
-      transaction.providerName = 'mpesa';
+      // 5. Prepare payment configuration
+      const paymentConfig: PaymentProviderConfig = {
+        amount,
+        phoneNumber: phoneNumber || '', // Will be empty for bank transfers
+        currency: 'KES',
+        transactionId: transaction.id,
+        metadata: {
+          accountReference: transaction.reference,
+          transactionDesc: description || 'Deposit to TumaPay wallet',
+          // Include bank details if provided
+          ...(bankDetails && {
+            accountNumber: bankDetails.accountNumber,
+            accountHolderName: bankDetails.accountHolderName,
+            bankName: bankDetails.bankName,
+            bankBranch: bankDetails.bankBranch,
+          }),
+        },
+      };
+
+      // 6. Initiate deposit through selected provider
+      const providerResponse = await selection.provider.initiateDeposit(paymentConfig);
+
+      this.logger.log(
+        `Deposit initiated via ${selection.paymentMethod}: ${providerResponse.providerTransactionId}`,
+      );
+
+      // 7. Store provider transaction ID and name
+      transaction.providerTransactionId = providerResponse.providerTransactionId;
+      transaction.providerName = selection.provider.getProviderName();
       await this.dataSource.manager.save(Transaction, transaction);
 
       return {
         transaction,
-        checkoutRequestId: stkPushResponse.CheckoutRequestID,
+        providerTransactionId: providerResponse.providerTransactionId,
       };
     } catch (error) {
-      this.logger.error('Failed to initiate STK Push', error);
+      this.logger.error(`Failed to initiate deposit`, error);
 
       // Update transaction status to failed
       transaction.status = 'failed' as any;
-      transaction.errorMessage = error.message || 'Failed to initiate M-Pesa payment';
+      transaction.errorMessage = error.message || 'Failed to initiate payment';
       transaction.failedAt = new Date();
       await this.dataSource.manager.save(Transaction, transaction);
 
@@ -420,16 +457,24 @@ export class WalletService {
   }
 
   /**
-   * Initiate wallet withdrawal via M-Pesa B2C
+   * Initiate wallet withdrawal via payment provider
+   * Uses intelligent provider selection based on currency, amount, and preferences
    */
   async initiateWithdrawal(
     walletId: string,
     business: Business,
     userId: string,
     amount: number,
-    phoneNumber: string,
+    phoneNumber?: string,
     description?: string,
-  ): Promise<{ transaction: Transaction; conversationId: string }> {
+    preferredPaymentMethod?: PaymentMethod,
+    bankDetails?: {
+      accountNumber?: string;
+      accountHolderName?: string;
+      bankName?: string;
+      bankBranch?: string;
+    },
+  ): Promise<{ transaction: Transaction; providerTransactionId: string }> {
     this.logger.log(
       `Initiating withdrawal: ${amount} KES from wallet ${walletId} for business ${business.id}`,
     );
@@ -463,8 +508,8 @@ export class WalletService {
         type: TransactionType.PAYOUT,
         amount,
         currency: wallet.currency,
-        recipientPhone: phoneNumber,
-        description: description || 'Wallet withdrawal via M-Pesa',
+        recipientPhone: phoneNumber || undefined,
+        description: description || 'Wallet withdrawal',
       },
       business.id,
       userId,
@@ -473,12 +518,12 @@ export class WalletService {
     this.logger.log(`Withdrawal transaction created: ${transaction.reference}`);
 
     try {
-      // 3. Update transaction with wallet association
+      // 4. Update transaction with wallet association
       transaction.walletId = wallet.id;
       transaction.walletCurrency = wallet.currency;
       await this.dataSource.manager.save(Transaction, transaction);
 
-      // 4. Debit wallet (atomic operation)
+      // 5. Debit wallet (atomic operation)
       await this.debitWallet(
         walletId,
         amount,
@@ -493,36 +538,61 @@ export class WalletService {
 
       this.logger.log(`Wallet ${walletId} debited: ${amount} ${wallet.currency}`);
 
-      // 5. Initiate M-Pesa B2C Payment
-      // Use SalaryPayment for sandbox compatibility
-      const b2cResponse = await this.mpesaService.b2cPayment(
-        {
-          phoneNumber,
-          amount,
-          commandId: 'SalaryPayment' as any, // SalaryPayment works in sandbox
-          remarks: description || 'Wallet withdrawal',
-          occasion: 'Withdrawal',
-        },
-        transaction.id,
-      );
+      // 6. Select best payment provider intelligently
+      const selectionCriteria: ProviderSelectionCriteria = {
+        currency: wallet.currency,
+        transactionType: ProviderTransactionType.WITHDRAWAL,
+        amount,
+        preferredProvider: preferredPaymentMethod,
+        businessId: business.id,
+      };
+
+      const selection = this.providerSelectionService.selectProvider(selectionCriteria);
 
       this.logger.log(
-        `B2C payment initiated: ${b2cResponse.ConversationID}`,
+        `Selected provider: ${selection.paymentMethod} - ${selection.selectionReason}`,
       );
 
-      // 6. Store M-Pesa provider transaction ID
-      transaction.providerTransactionId = b2cResponse.ConversationID;
-      transaction.providerName = 'mpesa';
+      // 7. Prepare payment configuration
+      const paymentConfig: PaymentProviderConfig = {
+        amount,
+        phoneNumber: phoneNumber || '', // Will be empty for bank transfers
+        currency: wallet.currency,
+        transactionId: transaction.id,
+        metadata: {
+          commandId: 'SalaryPayment', // SalaryPayment works in sandbox
+          remarks: description || 'Wallet withdrawal',
+          occasion: 'Withdrawal',
+          // Include bank details if provided
+          ...(bankDetails && {
+            accountNumber: bankDetails.accountNumber,
+            accountHolderName: bankDetails.accountHolderName,
+            bankName: bankDetails.bankName,
+            bankBranch: bankDetails.bankBranch,
+          }),
+        },
+      };
+
+      // 8. Initiate withdrawal through selected provider
+      const providerResponse = await selection.provider.initiateWithdrawal(paymentConfig);
+
+      this.logger.log(
+        `Withdrawal initiated via ${selection.paymentMethod}: ${providerResponse.providerTransactionId}`,
+      );
+
+      // 9. Store provider transaction ID and name
+      transaction.providerTransactionId = providerResponse.providerTransactionId;
+      transaction.providerName = selection.provider.getProviderName();
       await this.dataSource.manager.save(Transaction, transaction);
 
       return {
         transaction,
-        conversationId: b2cResponse.ConversationID,
+        providerTransactionId: providerResponse.providerTransactionId,
       };
     } catch (error) {
-      this.logger.error('Failed to initiate withdrawal', error);
+      this.logger.error(`Failed to initiate withdrawal`, error);
 
-      // Credit wallet back if B2C initiation failed
+      // Credit wallet back if withdrawal initiation failed
       try {
         await this.creditWallet(
           walletId,
@@ -533,25 +603,25 @@ export class WalletService {
           {
             originalTransactionId: transaction.id,
             errorMessage: error.message,
-            reversalReason: 'B2C initiation failed',
+            reversalReason: 'Withdrawal initiation failed',
           },
         );
 
         this.logger.log(
-          `Wallet ${walletId} credited back: ${amount} ${wallet.currency} due to B2C failure`,
+          `Wallet ${walletId} credited back: ${amount} ${wallet.currency} due to withdrawal failure`,
         );
       } catch (reversalError) {
         this.logger.error(
           `CRITICAL: Failed to credit wallet back for failed withdrawal ${transaction.reference}`,
           reversalError,
         );
-        // This is critical - the money is debited but B2C failed
+        // This is critical - the money is debited but withdrawal failed
         // Manual intervention required
       }
 
       // Update transaction status to failed
       transaction.status = 'failed' as any;
-      transaction.errorMessage = error.message || 'Failed to initiate M-Pesa B2C payment';
+      transaction.errorMessage = error.message || 'Failed to initiate withdrawal';
       transaction.failedAt = new Date();
       await this.dataSource.manager.save(Transaction, transaction);
 

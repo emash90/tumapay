@@ -12,7 +12,14 @@ import {
   Query,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { WalletService } from './wallet.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { BusinessVerifiedGuard } from '../business/guards/business-verified.guard';
@@ -22,8 +29,16 @@ import { Business } from '../../database/entities/business.entity';
 import { BusinessService } from '../business/business.service';
 import { WalletCurrency } from '../../database/entities/wallet.entity';
 import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
-import { CreateDepositDto, CreateWithdrawalDto } from './dto';
+import {
+  MpesaDepositDto,
+  BankTransferDepositDto,
+  MpesaWithdrawalDto,
+  BankTransferWithdrawalDto,
+} from './dto';
 import { WithdrawalLimitsService } from './services/withdrawal-limits.service';
+import { ProviderSelectionService } from '../payment-providers/services/provider-selection.service';
+import { ProviderTransactionType } from '../payment-providers/interfaces/provider-capabilities.interface';
+import { PaymentMethod } from '../payment-providers/enums/payment-method.enum';
 
 @ApiTags('wallets')
 @Controller('wallets')
@@ -36,6 +51,7 @@ export class WalletController {
     private walletService: WalletService,
     private businessService: BusinessService,
     private withdrawalLimitsService: WithdrawalLimitsService,
+    private providerSelectionService: ProviderSelectionService,
   ) {}
 
   @Get()
@@ -115,6 +131,68 @@ export class WalletController {
         businessId: business.id,
         currency,
         availableBalance: balance,
+      },
+    };
+  }
+
+  @Get('payment-providers')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get available payment providers',
+    description: 'Get all available payment providers for a specific currency and transaction type',
+  })
+  @ApiQuery({
+    name: 'currency',
+    required: true,
+    type: String,
+    description: 'Currency code (e.g., KES, USD)',
+    example: 'KES',
+  })
+  @ApiQuery({
+    name: 'transactionType',
+    required: false,
+    enum: ProviderTransactionType,
+    description: 'Transaction type (deposit/withdrawal)',
+    example: 'deposit',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Available payment providers retrieved successfully',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          providers: [
+            {
+              paymentMethod: 'mpesa',
+              displayName: 'M-Pesa',
+              features: ['Instant deposits', 'Instant withdrawals', 'Status tracking'],
+              estimatedTime: 30,
+            },
+          ],
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  async getAvailableProviders(
+    @Query('currency') currency: string,
+    @Query('transactionType') transactionType?: ProviderTransactionType,
+  ) {
+    const providers = this.providerSelectionService.getAvailableProviders(
+      currency,
+      transactionType,
+    );
+
+    return {
+      success: true,
+      data: {
+        currency,
+        transactionType: transactionType || 'all',
+        providers,
       },
     };
   }
@@ -509,11 +587,11 @@ export class WalletController {
     };
   }
 
-  @Post('deposit')
+  @Post('deposit/mpesa')
   @UseGuards(BusinessVerifiedGuard)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Deposit KES to wallet via M-Pesa',
+    summary: 'Deposit funds to wallet via M-Pesa',
     description: 'Initiate M-Pesa STK Push to deposit funds to KES wallet. Requires verified business.',
   })
   @ApiResponse({
@@ -532,12 +610,12 @@ export class WalletController {
     status: 403,
     description: 'Forbidden - Business not verified',
   })
-  async depositToWallet(
-    @Body() createDepositDto: CreateDepositDto,
+  async depositToWalletViaMpesa(
+    @Body() mpesaDepositDto: MpesaDepositDto,
     @CurrentUser() user: User,
     @Req() request: Request & { business: Business },
   ) {
-    const { amount, phoneNumber, description } = createDepositDto;
+    const { amount, phoneNumber, description } = mpesaDepositDto;
 
     const result = await this.walletService.initiateDeposit(
       request.business.id,
@@ -545,6 +623,7 @@ export class WalletController {
       amount,
       phoneNumber,
       description,
+      PaymentMethod.MPESA,
     );
 
     return {
@@ -559,18 +638,84 @@ export class WalletController {
           currency: result.transaction.currency,
           walletId: result.transaction.walletId,
         },
-        checkoutRequestId: result.checkoutRequestId,
+        providerTransactionId: result.providerTransactionId,
         instructions: 'Enter your M-Pesa PIN on your phone to complete the payment',
       },
     };
   }
 
-  @Post(':walletId/withdraw')
+  @Post('deposit/bank-transfer')
   @UseGuards(BusinessVerifiedGuard)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Withdraw funds from wallet to M-Pesa',
-    description: 'Initiate withdrawal from KES wallet to M-Pesa account via B2C payment. Requires verified business.',
+    summary: 'Deposit funds to wallet via Bank Transfer',
+    description: 'Initiate bank transfer deposit to wallet. Requires verified business.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Deposit request received. Complete the bank transfer to credit your wallet.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid amount or bank details',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Business not verified',
+  })
+  async depositToWalletViaBankTransfer(
+    @Body() bankTransferDepositDto: BankTransferDepositDto,
+    @CurrentUser() user: User,
+    @Req() request: Request & { business: Business },
+  ) {
+    const { amount, accountNumber, accountHolderName, bankName, bankBranch, description } = bankTransferDepositDto;
+
+    const bankDetails = {
+      accountNumber,
+      accountHolderName,
+      bankName,
+      bankBranch,
+    };
+
+    const result = await this.walletService.initiateDeposit(
+      request.business.id,
+      user.id,
+      amount,
+      undefined, // No phone number for bank transfer
+      description,
+      PaymentMethod.BANK_TRANSFER,
+      bankDetails,
+    );
+
+    return {
+      success: true,
+      message: 'Deposit request received. Please complete the bank transfer.',
+      data: {
+        transaction: {
+          id: result.transaction.id,
+          reference: result.transaction.reference,
+          amount: result.transaction.amount,
+          status: result.transaction.status,
+          currency: result.transaction.currency,
+          walletId: result.transaction.walletId,
+        },
+        providerTransactionId: result.providerTransactionId,
+        instructions: 'Transfer funds to the account details provided. Your wallet will be credited once payment is confirmed.',
+        bankDetails,
+      },
+    };
+  }
+
+  @Post(':walletId/withdraw/mpesa')
+  @UseGuards(BusinessVerifiedGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Withdraw funds from wallet via M-Pesa',
+    description: 'Initiate M-Pesa B2C withdrawal from wallet. Requires verified business.',
   })
   @ApiParam({ name: 'walletId', description: 'Wallet UUID to withdraw from' })
   @ApiResponse({
@@ -593,13 +738,13 @@ export class WalletController {
     status: 404,
     description: 'Wallet not found',
   })
-  async withdrawFromWallet(
+  async withdrawFromWalletViaMpesa(
     @Param('walletId') walletId: string,
-    @Body() createWithdrawalDto: CreateWithdrawalDto,
+    @Body() mpesaWithdrawalDto: MpesaWithdrawalDto,
     @CurrentUser() user: User,
     @Req() request: Request & { business: Business },
   ) {
-    const { amount, phoneNumber, description } = createWithdrawalDto;
+    const { amount, phoneNumber, description } = mpesaWithdrawalDto;
 
     // Get wallet to verify ownership before processing
     const wallet = await this.walletService.getWalletById(walletId);
@@ -616,6 +761,7 @@ export class WalletController {
       amount,
       phoneNumber,
       description,
+      PaymentMethod.MPESA,
     );
 
     return {
@@ -630,9 +776,91 @@ export class WalletController {
           currency: result.transaction.currency,
           walletId: result.transaction.walletId,
         },
-        conversationId: result.conversationId,
+        providerTransactionId: result.providerTransactionId,
         estimatedTime: '5 minutes',
         instructions: 'You will receive an M-Pesa SMS confirmation shortly',
+      },
+    };
+  }
+
+  @Post(':walletId/withdraw/bank-transfer')
+  @UseGuards(BusinessVerifiedGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Withdraw funds from wallet via Bank Transfer',
+    description: 'Initiate bank transfer withdrawal from wallet. Requires verified business.',
+  })
+  @ApiParam({ name: 'walletId', description: 'Wallet UUID to withdraw from' })
+  @ApiResponse({
+    status: 201,
+    description: 'Withdrawal initiated successfully. Funds will be transferred to bank account.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid amount, bank details, or insufficient balance',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Business not verified or wallet does not belong to business',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Wallet not found',
+  })
+  async withdrawFromWalletViaBankTransfer(
+    @Param('walletId') walletId: string,
+    @Body() bankTransferWithdrawalDto: BankTransferWithdrawalDto,
+    @CurrentUser() user: User,
+    @Req() request: Request & { business: Business },
+  ) {
+    const { amount, accountNumber, accountHolderName, bankName, bankBranch, description } = bankTransferWithdrawalDto;
+
+    // Get wallet to verify ownership before processing
+    const wallet = await this.walletService.getWalletById(walletId);
+
+    // Authorization check - wallet must belong to user's business
+    if (wallet.businessId !== request.business.id) {
+      throw new ForbiddenException('You do not have permission to withdraw from this wallet');
+    }
+
+    const bankDetails = {
+      accountNumber,
+      accountHolderName,
+      bankName,
+      bankBranch,
+    };
+
+    const result = await this.walletService.initiateWithdrawal(
+      walletId,
+      request.business,
+      user.id,
+      amount,
+      undefined, // No phone number for bank transfer
+      description,
+      PaymentMethod.BANK_TRANSFER,
+      bankDetails,
+    );
+
+    return {
+      success: true,
+      message: 'Withdrawal request submitted. Funds will be transferred to your bank account.',
+      data: {
+        transaction: {
+          id: result.transaction.id,
+          reference: result.transaction.reference,
+          amount: result.transaction.amount,
+          status: result.transaction.status,
+          currency: result.transaction.currency,
+          walletId: result.transaction.walletId,
+        },
+        providerTransactionId: result.providerTransactionId,
+        estimatedTime: '1-3 business days',
+        instructions: 'Bank transfer is being processed. You will receive confirmation once completed.',
+        bankDetails,
       },
     };
   }
