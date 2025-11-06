@@ -4,11 +4,12 @@ import { Wallet } from './wallet.entity';
 import { Transaction } from './transaction.entity';
 
 export enum WalletTransactionType {
-  DEPOSIT = 'deposit',           // Money in (M-Pesa deposit)
-  WITHDRAWAL = 'withdrawal',     // Money out (transfer out)
-  CONVERSION = 'conversion',     // Currency conversion (KES → USDT)
-  FEE = 'fee',                  // Platform fee deduction
-  REVERSAL = 'reversal',        // Refund/reversal
+  DEPOSIT = 'deposit',                   // Money in (M-Pesa deposit)
+  WITHDRAWAL = 'withdrawal',             // Money out (transfer out)
+  CONVERSION_DEBIT = 'conversion_debit', // Debit from source wallet during conversion
+  CONVERSION_CREDIT = 'conversion_credit', // Credit to target wallet during conversion
+  FEE = 'fee',                          // Platform fee deduction
+  REVERSAL = 'reversal',                // Refund/reversal
 }
 
 @Entity('wallet_transactions')
@@ -53,4 +54,20 @@ export class WalletTransaction extends BaseEntity {
   // Additional metadata
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any> | null;
+
+  // ===== CONVERSION-SPECIFIC FIELDS =====
+
+  // Link to conversion transaction (for audit trail)
+  @Column({ name: 'conversion_id', type: 'uuid', nullable: true })
+  conversionId: string | null;
+
+  // Exchange rate at time of conversion
+  @Column({
+    name: 'exchange_rate',
+    type: 'decimal',
+    precision: 18,
+    scale: 8,
+    nullable: true
+  })
+  exchangeRate: number | null;
 }

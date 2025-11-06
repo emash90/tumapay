@@ -8,6 +8,7 @@ export enum TransactionType {
   PAYOUT = 'payout',           // Business sends money to customer
   COLLECTION = 'collection',   // Business collects money from customer
   TRANSFER = 'transfer',       // Business to business transfer
+  CONVERSION = 'conversion',   // Currency conversion between wallets
 }
 
 export enum TransactionStatus {
@@ -141,4 +142,79 @@ export class Transaction extends BaseEntity {
   // Wallet currency at time of transaction
   @Column({ name: 'wallet_currency', type: 'varchar', length: 10, nullable: true })
   walletCurrency: string | null;
+
+  // ===== CONVERSION-SPECIFIC FIELDS =====
+
+  // Source currency for conversions
+  @Column({ name: 'source_currency', type: 'varchar', length: 10, nullable: true })
+  sourceCurrency: string | null;
+
+  // Target currency for conversions
+  @Column({ name: 'target_currency', type: 'varchar', length: 10, nullable: true })
+  targetCurrency: string | null;
+
+  // Amount in source currency
+  @Column({
+    name: 'source_amount',
+    type: 'decimal',
+    precision: 18,
+    scale: 8,
+    nullable: true
+  })
+  sourceAmount: number | null;
+
+  // Amount in target currency (after conversion)
+  @Column({
+    name: 'target_amount',
+    type: 'decimal',
+    precision: 18,
+    scale: 8,
+    nullable: true
+  })
+  targetAmount: number | null;
+
+  // Exchange rate used for conversion
+  @Column({
+    name: 'exchange_rate',
+    type: 'decimal',
+    precision: 18,
+    scale: 8,
+    nullable: true
+  })
+  exchangeRate: number | null;
+
+  // Conversion fee charged
+  @Column({
+    name: 'conversion_fee',
+    type: 'decimal',
+    precision: 18,
+    scale: 8,
+    nullable: true,
+    default: 0,
+  })
+  conversionFee: number | null;
+
+  // Timestamp when exchange rate was locked
+  @Column({
+    name: 'rate_timestamp',
+    type: 'bigint',
+    nullable: true,
+  })
+  rateTimestamp: number | null;
+
+  // Source wallet for conversions
+  @Column({ name: 'source_wallet_id', type: 'uuid', nullable: true })
+  sourceWalletId: string | null;
+
+  @ManyToOne(() => Wallet, { nullable: true })
+  @JoinColumn({ name: 'source_wallet_id' })
+  sourceWallet: Wallet | null;
+
+  // Target wallet for conversions
+  @Column({ name: 'target_wallet_id', type: 'uuid', nullable: true })
+  targetWalletId: string | null;
+
+  @ManyToOne(() => Wallet, { nullable: true })
+  @JoinColumn({ name: 'target_wallet_id' })
+  targetWallet: Wallet | null;
 }

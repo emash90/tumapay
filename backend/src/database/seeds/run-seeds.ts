@@ -1,5 +1,6 @@
 import { AppDataSource } from '../../config/data-source';
 import { seedBusinessData } from './business.seed';
+import { seedConversionFeeConfig } from './conversion-fee-config.seed';
 
 async function runSeeds() {
   try {
@@ -11,6 +12,9 @@ async function runSeeds() {
 
     // Run business seed data
     await seedBusinessData(AppDataSource);
+
+    // Run conversion fee config seed data
+    await seedConversionFeeConfig(AppDataSource);
 
     console.log('\n✨ All seeds completed successfully!');
     process.exit(0);
