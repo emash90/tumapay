@@ -11,6 +11,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
+import { ConversionModule } from './modules/conversion/conversion.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module
     PaymentProvidersModule,
     WalletModule,
     ExchangeRateModule,
+    ConversionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
