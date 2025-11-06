@@ -110,21 +110,58 @@ export class FeeConfigService {
     toCurrency: string,
     config: Partial<ConversionFeeConfig>,
   ): Promise<ConversionFeeConfig> {
+    // Remove fromCurrency and toCurrency from config to prevent updating unique keys
+    const { fromCurrency: _, toCurrency: __, ...updateConfig } = config as any;
+
     // Check if config exists
     let feeConfig = await this.feeConfigRepository.findOne({
       where: { fromCurrency, toCurrency },
     });
 
     if (feeConfig) {
-      // Update existing
-      Object.assign(feeConfig, config);
+      // Update existing - explicitly set each field to ensure proper type conversion
+      if (updateConfig.percentageFee !== undefined) {
+        feeConfig.percentageFee = Number(updateConfig.percentageFee);
+      }
+      if (updateConfig.fixedFee !== undefined) {
+        feeConfig.fixedFee = Number(updateConfig.fixedFee);
+      }
+      if (updateConfig.minimumFee !== undefined) {
+        feeConfig.minimumFee = Number(updateConfig.minimumFee);
+      }
+      if (updateConfig.rateMarkup !== undefined) {
+        feeConfig.rateMarkup = Number(updateConfig.rateMarkup);
+      }
+      if (updateConfig.minAmount !== undefined) {
+        feeConfig.minAmount = updateConfig.minAmount !== null ? Number(updateConfig.minAmount) : null;
+      }
+      if (updateConfig.maxAmount !== undefined) {
+        feeConfig.maxAmount = updateConfig.maxAmount !== null ? Number(updateConfig.maxAmount) : null;
+      }
+      if (updateConfig.priority !== undefined) {
+        feeConfig.priority = Number(updateConfig.priority);
+      }
+      if (updateConfig.isActive !== undefined) {
+        feeConfig.isActive = Boolean(updateConfig.isActive);
+      }
+      if (updateConfig.metadata !== undefined) {
+        feeConfig.metadata = updateConfig.metadata;
+      }
+
       this.logger.log(`Updating fee config for ${fromCurrency}->${toCurrency}`);
     } else {
       // Create new
       feeConfig = this.feeConfigRepository.create({
         fromCurrency,
         toCurrency,
-        ...config,
+        percentageFee: Number(updateConfig.percentageFee || 0),
+        fixedFee: Number(updateConfig.fixedFee || 0),
+        minimumFee: Number(updateConfig.minimumFee || 0),
+        rateMarkup: Number(updateConfig.rateMarkup || 0),
+        minAmount: updateConfig.minAmount !== undefined ? Number(updateConfig.minAmount) : null,
+        maxAmount: updateConfig.maxAmount !== undefined ? Number(updateConfig.maxAmount) : null,
+        priority: Number(updateConfig.priority || 0),
+        metadata: updateConfig.metadata || null,
         isActive: true,
       });
       this.logger.log(`Creating fee config for ${fromCurrency}->${toCurrency}`);

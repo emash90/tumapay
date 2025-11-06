@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
 import { ConversionController } from './conversion.controller';
+import { ConversionAdminController } from './conversion-admin.controller';
 import { ConversionService } from './conversion.service';
 import { FeeConfigService } from './services/fee-config.service';
 import { FeeCalculationService } from './services/fee-calculation.service';
@@ -30,7 +31,7 @@ import { Wallet } from '../../database/entities/wallet.entity';
     ExchangeRateModule,
     WalletModule,
   ],
-  controllers: [ConversionController],
+  controllers: [ConversionController, ConversionAdminController],
   providers: [
     ConversionService,
     FeeConfigService,

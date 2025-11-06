@@ -32,8 +32,8 @@ export class Transaction extends BaseEntity {
   @Column({ type: 'decimal', precision: 15, scale: 2 })
   amount: number;
 
-  // Currency code (e.g., KES, USD, EUR)
-  @Column({ type: 'varchar', length: 3, default: 'KES' })
+  // Currency code (e.g., KES, USD, EUR, USDT)
+  @Column({ type: 'varchar', length: 10, default: 'KES' })
   currency: string;
 
   // Transaction type
