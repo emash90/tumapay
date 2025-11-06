@@ -78,14 +78,7 @@ export class ConversionFeeConfig extends BaseEntity {
   })
   maxAmount: number | null;
 
-  // Whether this fee config is active
-  @Column({
-    name: 'is_active',
-    type: 'boolean',
-    default: true,
-    comment: 'Whether this fee configuration is currently active'
-  })
-  isActive: boolean;
+  // Note: isActive is inherited from BaseEntity
 
   // Priority for rule matching (higher priority = applied first)
   @Column({

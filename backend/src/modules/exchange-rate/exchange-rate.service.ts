@@ -1,23 +1,30 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, BadRequestException } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { firstValueFrom } from 'rxjs';
-import fixerConfig from '../../config/fixer.config';
+import currencyApiConfig from '../../config/currency-api.config';
 import {
-  FixerLatestResponse,
-  FixerErrorResponse,
-} from './interfaces/fixer-response.interface';
+  CurrencyApiLatestResponse,
+  CurrencyApiErrorResponse,
+} from './interfaces/currency-api-response.interface';
 import { IExchangeRate } from './interfaces/exchange-rate.interface';
 
 @Injectable()
 export class ExchangeRateService {
   private readonly logger = new Logger(ExchangeRateService.name);
 
+  // Crypto to fiat pegs (for currencies not supported by ExchangeRate-API)
+  private readonly cryptoPegs: Record<string, { peg: string; rate: number }> = {
+    USDT: { peg: 'USD', rate: 1.0 }, // Tether is pegged 1:1 to USD
+    USDC: { peg: 'USD', rate: 1.0 }, // USD Coin is pegged 1:1 to USD
+    // Add more stablecoins as needed
+  };
+
   constructor(
-    @Inject(fixerConfig.KEY)
-    private config: ConfigType<typeof fixerConfig>,
+    @Inject(currencyApiConfig.KEY)
+    private config: ConfigType<typeof currencyApiConfig>,
     private httpService: HttpService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
@@ -39,16 +46,16 @@ export class ExchangeRateService {
       return { ...cachedRate, source: 'cache' };
     }
 
-    // Fetch from Fixer.io
+    // Fetch from ExchangeRate-API
     try {
-      const rate = await this.fetchRateFromFixer(from, to);
+      const rate = await this.fetchRateFromExchangeRateApi(from, to);
 
       // Cache the result
       await this.cacheManager.set(cacheKey, rate, this.config.cacheTtl * 1000);
 
       return rate;
     } catch (error) {
-      this.logger.error(`Failed to fetch rate from Fixer: ${error.message}`);
+      this.logger.error(`Failed to fetch rate from ExchangeRate-API: ${error.message}`);
 
       // Try to get stale cache
       const staleRate = await this.cacheManager.get<IExchangeRate>(cacheKey);
@@ -63,12 +70,12 @@ export class ExchangeRateService {
 
   /**
    * Get all exchange rates with a specific base currency
-   * @param base Base currency (default: EUR - Fixer's default)
+   * @param base Base currency (default: USD)
    * @returns All available rates
    */
-  async getAllRates(base = 'EUR'): Promise<FixerLatestResponse> {
+  async getAllRates(base = 'USD'): Promise<Record<string, number>> {
     const cacheKey = `exchange_rates:all:${base}`;
-    const cached = await this.cacheManager.get<FixerLatestResponse>(cacheKey);
+    const cached = await this.cacheManager.get<Record<string, number>>(cacheKey);
 
     if (cached) {
       this.logger.debug(`Cache hit for all rates (base: ${base})`);
@@ -76,27 +83,9 @@ export class ExchangeRateService {
     }
 
     try {
-      const url = `${this.config.baseUrl}latest`;
-      const response = await firstValueFrom(
-        this.httpService.get<FixerLatestResponse | FixerErrorResponse>(url, {
-          params: {
-            access_key: this.config.apiKey,
-            base, // Note: Base currency change requires paid plan
-          },
-        }),
-      );
-
-      if (!response.data.success) {
-        const error = response.data as FixerErrorResponse;
-        throw new Error(`Fixer API error: ${error.error.info}`);
-      }
-
-      const data = response.data as FixerLatestResponse;
-
-      // Cache for TTL
-      await this.cacheManager.set(cacheKey, data, this.config.cacheTtl * 1000);
-
-      return data;
+      const allRates = await this.fetchAllRatesFromExchangeRateApi(base);
+      await this.cacheManager.set(cacheKey, allRates, this.config.cacheTtl * 1000);
+      return allRates;
     } catch (error) {
       this.logger.error(`Failed to fetch all rates: ${error.message}`);
       throw error;
@@ -120,57 +109,98 @@ export class ExchangeRateService {
   }
 
   /**
-   * Fetch rate from Fixer.io API
+   * Fetch all rates from ExchangeRate-API.com with specified base currency
    * @private
    */
-  private async fetchRateFromFixer(
+  private async fetchAllRatesFromExchangeRateApi(base: string): Promise<Record<string, number>> {
+    try {
+      const url = `${this.config.baseUrl}${this.config.apiKey}/latest/${base}`;
+      const response = await firstValueFrom(
+        this.httpService.get<CurrencyApiLatestResponse | CurrencyApiErrorResponse>(url, {
+          timeout: 10000,
+        }),
+      );
+
+      // Check if it's an error response
+      if (response.data.result === 'error') {
+        const error = response.data as CurrencyApiErrorResponse;
+        throw new BadRequestException(`ExchangeRate-API error: ${error['error-type']}`);
+      }
+
+      const data = response.data as CurrencyApiLatestResponse;
+
+      return data.conversion_rates;
+    } catch (error) {
+      this.logger.error(`ExchangeRate-API request failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch rate from ExchangeRate-API.com
+   * Handles crypto-to-fiat conversions using pegged rates
+   * @private
+   */
+  private async fetchRateFromExchangeRateApi(
     from: string,
     to: string,
   ): Promise<IExchangeRate> {
     try {
-      // Fixer uses EUR as base by default (free plan limitation)
-      const url = `${this.config.baseUrl}latest`;
+      // Check if 'from' is a crypto with a peg
+      const fromPeg = this.cryptoPegs[from];
+      const actualFrom = fromPeg ? fromPeg.peg : from;
+
+      // ExchangeRate-API.com endpoint: /v6/{api_key}/latest/{base_currency}
+      const url = `${this.config.baseUrl}${this.config.apiKey}/latest/${actualFrom}`;
       const response = await firstValueFrom(
-        this.httpService.get<FixerLatestResponse | FixerErrorResponse>(url, {
-          params: {
-            access_key: this.config.apiKey,
-            symbols: `${from},${to}`,
-          },
-          timeout: 5000,
+        this.httpService.get<CurrencyApiLatestResponse | CurrencyApiErrorResponse>(url, {
+          timeout: 10000,
         }),
       );
 
-      if (!response.data.success) {
-        const error = response.data as FixerErrorResponse;
-        throw new Error(`Fixer API error: ${error.error.info}`);
+      // Check if it's an error response
+      if (response.data.result === 'error') {
+        const error = response.data as CurrencyApiErrorResponse;
+        throw new BadRequestException(`ExchangeRate-API error: ${error['error-type']}`);
       }
 
-      const data = response.data as FixerLatestResponse;
+      const data = response.data as CurrencyApiLatestResponse;
 
-      // Calculate cross rate: FROM -> EUR -> TO
-      const fromRate = data.rates[from];
-      const toRate = data.rates[to];
+      // Check if 'to' is a crypto with a peg
+      const toPeg = this.cryptoPegs[to];
+      const actualTo = toPeg ? toPeg.peg : to;
 
-      if (!fromRate || !toRate) {
-        throw new Error(`Currency ${from} or ${to} not found in Fixer response`);
+      // Get the target currency rate
+      let rate = data.conversion_rates[actualTo];
+
+      if (!rate) {
+        throw new BadRequestException(`Currency ${to} not found in ExchangeRate-API response`);
       }
 
-      // Cross rate calculation: (1 FROM) = (fromRate EUR) -> (fromRate/toRate) TO
-      const rate = toRate / fromRate;
-      const inverseRate = fromRate / toRate;
+      // If 'from' is a pegged crypto, adjust the rate
+      if (fromPeg) {
+        rate = rate / fromPeg.rate;
+      }
 
-      this.logger.log(`Fetched rate from Fixer: 1 ${from} = ${rate.toFixed(6)} ${to}`);
+      // If 'to' is a pegged crypto, adjust the rate
+      if (toPeg) {
+        rate = rate * toPeg.rate;
+      }
+
+      const inverseRate = 1 / rate;
+
+      this.logger.log(`Fetched rate from ExchangeRate-API: 1 ${from} = ${rate.toFixed(6)} ${to}`);
 
       return {
         from,
         to,
         rate,
         inverseRate,
-        timestamp: data.timestamp,
-        source: 'fixer',
+        timestamp: data.time_last_update_unix,
+        source: 'currencyapi',
       };
     } catch (error) {
-      this.logger.error(`Fixer API request failed: ${error.message}`);
+      this.logger.error(`ExchangeRate-API request failed: ${error.message}`);
       throw error;
     }
   }

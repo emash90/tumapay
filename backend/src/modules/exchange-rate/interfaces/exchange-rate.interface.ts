@@ -4,7 +4,7 @@ export interface IExchangeRate {
   rate: number;
   inverseRate: number;
   timestamp: number;
-  source: 'fixer' | 'cache' | 'fallback';
+  source: 'currencyapi' | 'cache' | 'fallback';
 }
 
 export interface IExchangeRatePair {

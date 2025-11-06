@@ -47,6 +47,8 @@ export class AddConversionSupport1730899000000 implements MigrationInterface {
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "created_at" TIMESTAMP NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
+        "deleted_at" TIMESTAMP,
+        "is_active" boolean NOT NULL DEFAULT true,
         "from_currency" varchar(10) NOT NULL,
         "to_currency" varchar(10) NOT NULL,
         "percentage_fee" decimal(5,2) NOT NULL DEFAULT '0',
@@ -55,7 +57,6 @@ export class AddConversionSupport1730899000000 implements MigrationInterface {
         "rate_markup" decimal(5,2) NOT NULL DEFAULT '0',
         "min_amount" decimal(18,8),
         "max_amount" decimal(18,8),
-        "is_active" boolean NOT NULL DEFAULT true,
         "priority" integer NOT NULL DEFAULT '0',
         "metadata" jsonb,
         CONSTRAINT "PK_conversion_fee_config" PRIMARY KEY ("id")

@@ -5,12 +5,12 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ExchangeRateService } from './exchange-rate.service';
 import { ExchangeRateController } from './exchange-rate.controller';
 import { AuthModule } from '../auth/auth.module';
-import fixerConfig from '../../config/fixer.config';
+import currencyApiConfig from '../../config/currency-api.config';
 
 @Module({
   imports: [
     HttpModule,
-    ConfigModule.forFeature(fixerConfig),
+    ConfigModule.forFeature(currencyApiConfig),
     CacheModule.register(),
     AuthModule,
   ],
