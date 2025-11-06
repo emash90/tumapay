@@ -10,6 +10,7 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
+import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { PaymentProvidersModule } from './modules/payment-providers/payment-prov
     TransactionsModule,
     PaymentProvidersModule,
     WalletModule,
+    ExchangeRateModule,
   ],
   controllers: [AppController],
   providers: [AppService],
