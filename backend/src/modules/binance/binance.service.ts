@@ -3,12 +3,9 @@ import Binance from 'binance-api-node';
 import { ConfigService } from '@nestjs/config';
 import {
   IBinanceBalance,
-  IBinanceOrder,
   IBinanceWithdrawal,
 } from './interfaces/binance-config.interface';
 import {
-  ConvertToUSDTDto,
-  ConvertFromUSDTDto,
   WithdrawUSDTDto,
 } from './dto/convert-to-usdt.dto';
 
@@ -120,113 +117,23 @@ export class BinanceService {
   }
 
   /**
-   * Convert fiat currency to USDT using spot trading
-   * @param dto Conversion parameters
-   * @returns Order details and USDT amount received
+   * NOTE: Fiat currency conversions have been removed from BinanceService.
+   *
+   * REASON: Binance does NOT support direct fiat trading pairs (e.g., KES/USDT, USD/USDT).
+   *
+   * CORRECT APPROACH:
+   * 1. Use the Conversion Module (/conversions/convert) for fiat → USDT conversions
+   *    - Handles fiat exchange rates via Exchange Rate Service
+   *    - Manages internal wallet balances (KES wallet → USDT wallet)
+   *    - Applies proper fees and rate markup
+   *
+   * 2. Use BinanceService ONLY for:
+   *    - Withdrawing USDT from internal wallet to external TRON wallet (withdrawUSDT)
+   *    - Checking USDT balances on Binance
+   *    - Getting cryptocurrency prices (BTC, ETH, etc.)
+   *
+   * See TUM-60 for the proper integration between Conversion Module and Binance Module.
    */
-  async convertToUSDT(dto: ConvertToUSDTDto): Promise<{
-    usdtAmount: number;
-    exchangeRate: number;
-    order: IBinanceOrder;
-  }> {
-    try {
-      this.logger.log(
-        `Converting ${dto.amount} ${dto.fromCurrency} to USDT`,
-      );
-
-      // Get current exchange rate
-      const exchangeRate = await this.getExchangeRate(
-        dto.fromCurrency,
-        'USDT',
-      );
-
-      // Calculate expected USDT amount
-      const expectedUSDT = dto.amount * exchangeRate;
-
-      // Place market order to buy USDT with fiat
-      // Note: In production, you might want to use limit orders for better price control
-      const symbol = `USDT${dto.fromCurrency}`;
-
-      const order = await this.client.order({
-        symbol,
-        side: 'BUY',
-        type: 'MARKET',
-        quantity: expectedUSDT.toFixed(2),
-      });
-
-      // Calculate actual USDT received from order fills
-      const usdtReceived = parseFloat(order.executedQty);
-
-      this.logger.log(
-        `Conversion complete: ${usdtReceived} USDT received (rate: ${exchangeRate})`,
-      );
-
-      return {
-        usdtAmount: usdtReceived,
-        exchangeRate,
-        order: order as any,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error converting ${dto.fromCurrency} to USDT: ${error.message}`,
-      );
-      throw new HttpException(
-        `Failed to convert to USDT: ${error.message}`,
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-  }
-
-  /**
-   * Convert USDT to fiat currency using spot trading
-   * @param dto Conversion parameters
-   * @returns Order details and fiat amount received
-   */
-  async convertFromUSDT(dto: ConvertFromUSDTDto): Promise<{
-    fiatAmount: number;
-    exchangeRate: number;
-    order: IBinanceOrder;
-  }> {
-    try {
-      this.logger.log(
-        `Converting ${dto.amount} USDT to ${dto.toCurrency}`,
-      );
-
-      // Get current exchange rate
-      const exchangeRate = await this.getExchangeRate('USDT', dto.toCurrency);
-
-      // Place market order to sell USDT for fiat
-      const symbol = `USDT${dto.toCurrency}`;
-
-      const order = await this.client.order({
-        symbol,
-        side: 'SELL',
-        type: 'MARKET',
-        quantity: dto.amount.toFixed(2),
-      });
-
-      // Calculate actual fiat received from order fills
-      const fiatReceived = parseFloat(order.cummulativeQuoteQty);
-
-      this.logger.log(
-        `Conversion complete: ${fiatReceived} ${dto.toCurrency} received (rate: ${exchangeRate})`,
-      );
-
-      return {
-        fiatAmount: fiatReceived,
-        exchangeRate,
-        order: order as any,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Error converting USDT to ${dto.toCurrency}: ${error.message}`,
-      );
-      throw new HttpException(
-        `Failed to convert from USDT: ${error.message}`,
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-  }
 
   /**
    * Get USDT balance in Binance account

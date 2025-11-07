@@ -16,8 +16,6 @@ import {
 } from '@nestjs/swagger';
 import { BinanceService } from './binance.service';
 import {
-  ConvertToUSDTDto,
-  ConvertFromUSDTDto,
   WithdrawUSDTDto,
 } from './dto/convert-to-usdt.dto';
 import { AuthGuard } from '../../common/guards/auth.guard';
@@ -64,63 +62,28 @@ export class BinanceController {
     };
   }
 
-  @Post('convert-to-usdt')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Convert fiat currency to USDT',
-    description:
-      '⚠️ WARNING: This endpoint does not work as designed. Binance does not support fiat currency pairs. ' +
-      'For fiat-to-USDT conversions, use the Exchange Rate service to get fiat rates, then calculate USDT equivalent (1 USD ≈ 1 USDT). ' +
-      'See BINANCE_USAGE.md for proper implementation.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Conversion to USDT successful',
-  })
-  async convertToUSDT(@Body() dto: ConvertToUSDTDto) {
-    const result = await this.binanceService.convertToUSDT(dto);
-    return {
-      success: true,
-      data: {
-        sourceAmount: dto.amount,
-        sourceCurrency: dto.fromCurrency,
-        targetAmount: result.usdtAmount,
-        targetCurrency: 'USDT',
-        exchangeRate: result.exchangeRate,
-        orderId: result.order.orderId,
-        timestamp: result.order.transactTime,
-      },
-    };
-  }
-
-  @Post('convert-from-usdt')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Convert USDT to fiat currency',
-    description:
-      '⚠️ WARNING: This endpoint does not work as designed. Binance does not support fiat currency pairs. ' +
-      'For USDT-to-fiat conversions, calculate fiat equivalent (1 USDT ≈ 1 USD), then use Exchange Rate service for final currency. ' +
-      'See BINANCE_USAGE.md for proper implementation.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Conversion from USDT successful',
-  })
-  async convertFromUSDT(@Body() dto: ConvertFromUSDTDto) {
-    const result = await this.binanceService.convertFromUSDT(dto);
-    return {
-      success: true,
-      data: {
-        sourceAmount: dto.amount,
-        sourceCurrency: 'USDT',
-        targetAmount: result.fiatAmount,
-        targetCurrency: dto.toCurrency,
-        exchangeRate: result.exchangeRate,
-        orderId: result.order.orderId,
-        timestamp: result.order.transactTime,
-      },
-    };
-  }
+  /**
+   * NOTE: Fiat conversion endpoints (convert-to-usdt, convert-from-usdt) have been removed.
+   *
+   * REASON: Binance does NOT support fiat currency trading.
+   *
+   * FOR FIAT → USDT CONVERSIONS:
+   * Use the Conversion Module instead:
+   *   POST /conversions/convert
+   *   Body: { amount, fromCurrency: "KES", toCurrency: "USDT" }
+   *
+   * This properly:
+   * - Uses Exchange Rate Service for fiat exchange rates
+   * - Manages internal wallet balances (KES wallet → USDT wallet)
+   * - Applies conversion fees and rate markup
+   * - Records transaction history
+   *
+   * Then use Binance ONLY for withdrawing USDT to blockchain:
+   *   POST /binance/withdraw-usdt
+   *   Body: { amount, address, network: "TRX" }
+   *
+   * See TUM-60 for the integrated flow.
+   */
 
   @Get('balance/usdt')
   @ApiOperation({ summary: 'Get USDT balance in Binance account' })

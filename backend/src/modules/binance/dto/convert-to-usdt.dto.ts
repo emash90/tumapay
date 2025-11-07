@@ -1,49 +1,17 @@
-import { IsNumber, IsString, IsPositive, IsEnum } from 'class-validator';
+import { IsNumber, IsString, IsPositive } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export enum SupportedFiatCurrency {
-  KES = 'KES',
-  USD = 'USD',
-  EUR = 'EUR',
-  GBP = 'GBP',
-  TRY = 'TRY',
-}
-
-export class ConvertToUSDTDto {
-  @ApiProperty({
-    description: 'Amount in fiat currency to convert',
-    example: 10000,
-  })
-  @IsNumber()
-  @IsPositive()
-  amount: number;
-
-  @ApiProperty({
-    description: 'Source fiat currency',
-    enum: SupportedFiatCurrency,
-    example: 'KES',
-  })
-  @IsEnum(SupportedFiatCurrency)
-  fromCurrency: SupportedFiatCurrency;
-}
-
-export class ConvertFromUSDTDto {
-  @ApiProperty({
-    description: 'Amount in USDT to convert',
-    example: 100,
-  })
-  @IsNumber()
-  @IsPositive()
-  amount: number;
-
-  @ApiProperty({
-    description: 'Target fiat currency',
-    enum: SupportedFiatCurrency,
-    example: 'KES',
-  })
-  @IsEnum(SupportedFiatCurrency)
-  toCurrency: SupportedFiatCurrency;
-}
+/**
+ * NOTE: ConvertToUSDTDto and ConvertFromUSDTDto have been removed.
+ *
+ * REASON: Binance does not support fiat currency trading.
+ *
+ * For fiat → USDT conversions, use the Conversion Module:
+ *   POST /conversions/convert
+ *   Body: { amount, fromCurrency: "KES", toCurrency: "USDT" }
+ *
+ * See TUM-60 for proper integration.
+ */
 
 export class WithdrawUSDTDto {
   @ApiProperty({
