@@ -12,6 +12,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { PaymentProvidersModule } from './modules/payment-providers/payment-providers.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { ConversionModule } from './modules/conversion/conversion.module';
+import { BinanceModule } from './modules/binance/binance.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ConversionModule } from './modules/conversion/conversion.module';
     WalletModule,
     ExchangeRateModule,
     ConversionModule,
+    BinanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
