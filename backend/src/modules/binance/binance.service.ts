@@ -1,4 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import Binance from 'binance-api-node';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -8,13 +10,21 @@ import {
 import {
   WithdrawUSDTDto,
 } from './dto/convert-to-usdt.dto';
+import { BinanceWithdrawal, BinanceWithdrawalStatus } from '../../database/entities/binance-withdrawal.entity';
+import { Transaction, TransactionType, TransactionStatus } from '../../database/entities/transaction.entity';
 
 @Injectable()
 export class BinanceService {
   private readonly logger = new Logger(BinanceService.name);
   private client: any; // Using any due to incomplete type definitions in binance-api-node
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    @InjectRepository(BinanceWithdrawal)
+    private binanceWithdrawalRepository: Repository<BinanceWithdrawal>,
+    @InjectRepository(Transaction)
+    private transactionRepository: Repository<Transaction>,
+  ) {
     const apiKey = this.configService.get<string>('BINANCE_API_KEY');
     const apiSecret = this.configService.get<string>('BINANCE_API_SECRET');
     const testnet = this.configService.get<boolean>('BINANCE_TESTNET', false);
@@ -209,12 +219,18 @@ export class BinanceService {
   /**
    * Withdraw USDT to external wallet (e.g., TRON address)
    * @param dto Withdrawal parameters
+   * @param businessId Business ID initiating withdrawal
+   * @param userId User ID initiating withdrawal
    * @returns Withdrawal details
    */
-  async withdrawUSDT(dto: WithdrawUSDTDto): Promise<IBinanceWithdrawal> {
+  async withdrawUSDT(
+    dto: WithdrawUSDTDto,
+    businessId: string,
+    userId: string,
+  ): Promise<IBinanceWithdrawal> {
     try {
       this.logger.log(
-        `Withdrawing ${dto.amount} USDT to ${dto.address} on ${dto.network}`,
+        `Withdrawing ${dto.amount} USDT to ${dto.address} on ${dto.network} for business ${businessId}`,
       );
 
       // Validate sufficient balance
@@ -228,7 +244,7 @@ export class BinanceService {
         );
       }
 
-      // Initiate withdrawal
+      // Initiate withdrawal with Binance
       const withdrawal = await this.client.withdraw({
         asset: 'USDT',
         address: dto.address,
@@ -237,7 +253,59 @@ export class BinanceService {
       });
 
       this.logger.log(
-        `Withdrawal initiated: ID ${withdrawal.id}, Status: ${withdrawal.status}`,
+        `Withdrawal initiated with Binance: ID ${withdrawal.id}, Status: ${withdrawal.status}`,
+      );
+
+      // Create Transaction record
+      const transaction = this.transactionRepository.create({
+        reference: `WD-${Date.now()}-${withdrawal.id.substring(0, 8)}`,
+        amount: dto.amount,
+        currency: 'USDT',
+        type: TransactionType.WITHDRAWAL,
+        status: TransactionStatus.PROCESSING,
+        businessId,
+        userId,
+        description: `USDT withdrawal to ${dto.address} on ${dto.network}`,
+        providerName: 'binance',
+        metadata: {
+          network: dto.network,
+          address: dto.address,
+        },
+      });
+      await this.transactionRepository.save(transaction);
+
+      // Create BinanceWithdrawal record
+      const binanceWithdrawal = this.binanceWithdrawalRepository.create({
+        binanceWithdrawalId: withdrawal.id,
+        businessId,
+        userId,
+        transactionId: transaction.id,
+        amount: dto.amount,
+        asset: 'USDT',
+        address: dto.address,
+        network: dto.network,
+        status: this.mapBinanceStatus(withdrawal.status),
+        txId: withdrawal.txId || null,
+        transactionFee: withdrawal.transactionFee
+          ? parseFloat(withdrawal.transactionFee)
+          : null,
+        applyTime: withdrawal.applyTime ? new Date(withdrawal.applyTime) : null,
+        successTime: withdrawal.successTime
+          ? new Date(withdrawal.successTime)
+          : null,
+        info: withdrawal.info || null,
+        binanceResponse: withdrawal as any,
+        checkCount: 0,
+        lastCheckedAt: new Date(),
+      });
+      await this.binanceWithdrawalRepository.save(binanceWithdrawal);
+
+      // Update transaction with binanceWithdrawalId
+      transaction.binanceWithdrawalId = binanceWithdrawal.id;
+      await this.transactionRepository.save(transaction);
+
+      this.logger.log(
+        `Withdrawal record created: Transaction ${transaction.id}, Binance Withdrawal ${binanceWithdrawal.id}`,
       );
 
       return withdrawal as IBinanceWithdrawal;
@@ -247,6 +315,36 @@ export class BinanceService {
         `Failed to withdraw USDT: ${error.message}`,
         HttpStatus.SERVICE_UNAVAILABLE,
       );
+    }
+  }
+
+  /**
+   * Map Binance status code to BinanceWithdrawalStatus enum
+   * @param status Status from Binance API (could be number or string)
+   * @returns BinanceWithdrawalStatus enum value
+   */
+  private mapBinanceStatus(status: any): BinanceWithdrawalStatus {
+    // Binance API returns status as number (0-6)
+    const statusNum = typeof status === 'number' ? status : parseInt(status, 10);
+
+    // Map to our enum values
+    switch (statusNum) {
+      case 0:
+        return BinanceWithdrawalStatus.EMAIL_SENT;
+      case 1:
+        return BinanceWithdrawalStatus.CANCELLED;
+      case 2:
+        return BinanceWithdrawalStatus.AWAITING_APPROVAL;
+      case 3:
+        return BinanceWithdrawalStatus.REJECTED;
+      case 4:
+        return BinanceWithdrawalStatus.PROCESSING;
+      case 5:
+        return BinanceWithdrawalStatus.FAILURE;
+      case 6:
+        return BinanceWithdrawalStatus.COMPLETED;
+      default:
+        return BinanceWithdrawalStatus.PROCESSING;
     }
   }
 

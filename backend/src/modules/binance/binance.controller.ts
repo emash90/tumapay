@@ -20,6 +20,8 @@ import {
 } from './dto/convert-to-usdt.dto';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SuperAdminGuard } from '../../common/guards/super-admin.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { User } from '../../database/entities/user.entity';
 
 @ApiTags('Binance')
 @Controller('binance')
@@ -124,8 +126,11 @@ export class BinanceController {
     status: 200,
     description: 'USDT withdrawal initiated successfully',
   })
-  async withdrawUSDT(@Body() dto: WithdrawUSDTDto) {
-    const withdrawal = await this.binanceService.withdrawUSDT(dto);
+  async withdrawUSDT(
+    @Body() dto: WithdrawUSDTDto,
+    @CurrentUser() user: User,
+  ) {
+    const withdrawal = await this.binanceService.withdrawUSDT(dto, user.businessId, user.id);
     return {
       success: true,
       data: {

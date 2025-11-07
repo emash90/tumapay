@@ -1,11 +1,18 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { BinanceService } from './binance.service';
 import { BinanceController } from './binance.controller';
 import { AuthModule } from '../auth/auth.module';
+import { BinanceWithdrawal } from '../../database/entities/binance-withdrawal.entity';
+import { Transaction } from '../../database/entities/transaction.entity';
 
 @Module({
-  imports: [ConfigModule, AuthModule],
+  imports: [
+    ConfigModule,
+    AuthModule,
+    TypeOrmModule.forFeature([BinanceWithdrawal, Transaction]),
+  ],
   controllers: [BinanceController],
   providers: [BinanceService],
   exports: [BinanceService],

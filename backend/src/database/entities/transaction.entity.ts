@@ -9,6 +9,7 @@ export enum TransactionType {
   COLLECTION = 'collection',   // Business collects money from customer
   TRANSFER = 'transfer',       // Business to business transfer
   CONVERSION = 'conversion',   // Currency conversion between wallets
+  WITHDRAWAL = 'withdrawal',   // Withdrawal to external blockchain address (e.g., USDT to TRON)
 }
 
 export enum TransactionStatus {
@@ -217,4 +218,10 @@ export class Transaction extends BaseEntity {
   @ManyToOne(() => Wallet, { nullable: true })
   @JoinColumn({ name: 'target_wallet_id' })
   targetWallet: Wallet | null;
+
+  // ===== WITHDRAWAL-SPECIFIC FIELDS =====
+
+  // Binance withdrawal ID (for USDT withdrawals to blockchain)
+  @Column({ name: 'binance_withdrawal_id', type: 'uuid', nullable: true })
+  binanceWithdrawalId: string | null;
 }
