@@ -9,9 +9,14 @@ import {
 } from './interfaces/binance-config.interface';
 import {
   WithdrawUSDTDto,
+  ConvertAndWithdrawDto,
 } from './dto/convert-to-usdt.dto';
 import { BinanceWithdrawal, BinanceWithdrawalStatus } from '../../database/entities/binance-withdrawal.entity';
 import { Transaction, TransactionType, TransactionStatus } from '../../database/entities/transaction.entity';
+import { ConversionService } from '../conversion/conversion.service';
+import { WalletService } from '../wallet/wallet.service';
+import { WalletCurrency } from '../../database/entities/wallet.entity';
+import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
 
 @Injectable()
 export class BinanceService {
@@ -24,6 +29,8 @@ export class BinanceService {
     private binanceWithdrawalRepository: Repository<BinanceWithdrawal>,
     @InjectRepository(Transaction)
     private transactionRepository: Repository<Transaction>,
+    private conversionService: ConversionService,
+    private walletService: WalletService,
   ) {
     const apiKey = this.configService.get<string>('BINANCE_API_KEY');
     const apiSecret = this.configService.get<string>('BINANCE_API_SECRET');
@@ -233,16 +240,41 @@ export class BinanceService {
         `Withdrawing ${dto.amount} USDT to ${dto.address} on ${dto.network} for business ${businessId}`,
       );
 
-      // Validate sufficient balance
+      // Step 1: Validate sufficient internal wallet balance
+      const usdtWallet = await this.walletService.getOrCreateWallet(
+        businessId,
+        WalletCurrency.USDT,
+      );
+
+      if (usdtWallet.availableBalance < dto.amount) {
+        throw new HttpException(
+          `Insufficient USDT wallet balance. Available: ${usdtWallet.availableBalance}, Required: ${dto.amount}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Step 2: Validate sufficient Binance balance
       const balance = await this.getUSDTBalance();
       const availableBalance = parseFloat(balance.free);
 
       if (availableBalance < dto.amount) {
         throw new HttpException(
-          `Insufficient USDT balance. Available: ${availableBalance}, Required: ${dto.amount}`,
+          `Insufficient Binance USDT balance. Available: ${availableBalance}, Required: ${dto.amount}`,
           HttpStatus.BAD_REQUEST,
         );
       }
+
+      // Step 3: Debit internal USDT wallet first (before Binance withdrawal)
+      await this.walletService.debitWallet(
+        usdtWallet.id,
+        dto.amount,
+        WalletTransactionType.WITHDRAWAL,
+        `USDT withdrawal to ${dto.address} on ${dto.network}`,
+      );
+
+      this.logger.log(
+        `Debited ${dto.amount} USDT from internal wallet. New balance: ${usdtWallet.availableBalance - dto.amount}`,
+      );
 
       // Initiate withdrawal with Binance
       const withdrawal = await this.client.withdraw({
@@ -311,6 +343,32 @@ export class BinanceService {
       return withdrawal as IBinanceWithdrawal;
     } catch (error) {
       this.logger.error(`Error withdrawing USDT: ${error.message}`);
+
+      // Rollback: Credit USDT back to internal wallet if withdrawal fails
+      // Only do this if the wallet was already debited
+      try {
+        const usdtWallet = await this.walletService.getOrCreateWallet(
+          businessId,
+          WalletCurrency.USDT,
+        );
+
+        // Credit back the amount
+        await this.walletService.creditWallet(
+          usdtWallet.id,
+          dto.amount,
+          WalletTransactionType.REVERSAL,
+          `Withdrawal failed - reversal: ${error.message}`,
+        );
+
+        this.logger.log(
+          `Credited ${dto.amount} USDT back to wallet due to withdrawal failure`,
+        );
+      } catch (rollbackError) {
+        this.logger.error(
+          `CRITICAL: Failed to rollback wallet debit after withdrawal error: ${rollbackError.message}`,
+        );
+      }
+
       throw new HttpException(
         `Failed to withdraw USDT: ${error.message}`,
         HttpStatus.SERVICE_UNAVAILABLE,
@@ -411,6 +469,166 @@ export class BinanceService {
     } catch (error) {
       this.logger.error(`Error checking pair support: ${error.message}`);
       return false;
+    }
+  }
+
+  /**
+   * Convert fiat currency to USDT and withdraw to external blockchain address
+   * This is the integrated flow combining conversion and withdrawal
+   *
+   * @param dto Convert and withdraw parameters
+   * @param businessId Business ID
+   * @param userId User ID
+   * @returns Combined conversion and withdrawal details
+   */
+  async convertAndWithdraw(
+    dto: ConvertAndWithdrawDto,
+    businessId: string,
+    userId: string,
+  ): Promise<{
+    conversion: any;
+    withdrawal: IBinanceWithdrawal;
+    usdtWalletBalance: string;
+  }> {
+    try {
+      this.logger.log(
+        `Starting convert-and-withdraw for business ${businessId}: ${dto.amount} ${dto.fromCurrency} -> USDT -> ${dto.address}`,
+      );
+
+      // Step 1: Convert fiat currency to USDT using Conversion Module
+      const conversion = await this.conversionService.executeConversion(
+        businessId,
+        userId,
+        {
+          amount: dto.amount,
+          fromCurrency: dto.fromCurrency,
+          toCurrency: WalletCurrency.USDT,
+          description: dto.description || `Convert ${dto.fromCurrency} to USDT for blockchain withdrawal to ${dto.address}`,
+        },
+      );
+
+      this.logger.log(
+        `Conversion completed: ${conversion.sourceAmount} ${conversion.sourceCurrency} -> ${conversion.targetAmount} ${conversion.targetCurrency}`,
+      );
+
+      // Step 2: Get USDT wallet to verify balance
+      const usdtWallet = await this.walletService.getOrCreateWallet(
+        businessId,
+        WalletCurrency.USDT,
+      );
+
+      this.logger.log(
+        `USDT Wallet balance after conversion: ${usdtWallet.availableBalance} USDT`,
+      );
+
+      // Step 3: Withdraw USDT to external blockchain address
+      const withdrawalAmount = conversion.targetAmount;
+
+      if (withdrawalAmount <= 0) {
+        throw new HttpException(
+          `Invalid withdrawal amount after conversion: ${withdrawalAmount} USDT`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const withdrawal = await this.withdrawUSDT(
+        {
+          amount: withdrawalAmount,
+          address: dto.address,
+          network: dto.network,
+        },
+        businessId,
+        userId,
+      );
+
+      this.logger.log(
+        `Withdrawal initiated: ${withdrawalAmount} USDT to ${dto.address}, Binance withdrawal ID: ${withdrawal.id}`,
+      );
+
+      // Step 4: Link conversion transaction to withdrawal transaction
+      const conversionTransaction = await this.transactionRepository.findOne({
+        where: { reference: conversion.reference },
+      });
+
+      if (conversionTransaction) {
+        const withdrawalTransaction = await this.transactionRepository.findOne({
+          where: {
+            businessId,
+            type: TransactionType.WITHDRAWAL,
+            amount: withdrawalAmount,
+            currency: 'USDT',
+            providerName: 'binance',
+          },
+          order: { createdAt: 'DESC' },
+        });
+
+        if (withdrawalTransaction) {
+          // Link transactions by adding metadata
+          conversionTransaction.metadata = {
+            ...conversionTransaction.metadata,
+            linkedWithdrawalId: withdrawalTransaction.id,
+            linkedWithdrawalReference: withdrawalTransaction.reference,
+            withdrawalAddress: dto.address,
+            withdrawalNetwork: dto.network,
+          };
+          await this.transactionRepository.save(conversionTransaction);
+
+          withdrawalTransaction.metadata = {
+            ...withdrawalTransaction.metadata,
+            linkedConversionId: conversionTransaction.id,
+            linkedConversionReference: conversionTransaction.reference,
+            originalAmount: dto.amount,
+            originalCurrency: dto.fromCurrency,
+          };
+          await this.transactionRepository.save(withdrawalTransaction);
+
+          this.logger.log(
+            `Linked conversion transaction ${conversionTransaction.reference} with withdrawal transaction ${withdrawalTransaction.reference}`,
+          );
+        }
+      }
+
+      // Get updated wallet balance
+      const updatedWallet = await this.walletService.getOrCreateWallet(
+        businessId,
+        WalletCurrency.USDT,
+      );
+
+      this.logger.log(
+        `Convert-and-withdraw completed successfully. Final USDT wallet balance: ${updatedWallet.availableBalance}`,
+      );
+
+      return {
+        conversion: {
+          transactionId: conversion.transactionId,
+          reference: conversion.reference,
+          sourceAmount: conversion.sourceAmount,
+          sourceCurrency: conversion.sourceCurrency,
+          targetAmount: conversion.targetAmount,
+          targetCurrency: conversion.targetCurrency,
+          conversionFee: conversion.conversionFee,
+          exchangeRate: conversion.exchangeRate,
+        },
+        withdrawal,
+        usdtWalletBalance: String(updatedWallet.availableBalance),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error in convert-and-withdraw: ${error.message}`,
+        error.stack,
+      );
+
+      // If conversion succeeded but withdrawal failed, log it clearly
+      if (error.message && error.message.includes('Insufficient USDT balance')) {
+        this.logger.error(
+          `Conversion succeeded but withdrawal failed due to insufficient balance. Manual intervention may be required.`,
+        );
+      }
+
+      throw new HttpException(
+        `Failed to convert and withdraw: ${error.message}`,
+        error.status || HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 }

@@ -17,6 +17,7 @@ import {
 import { BinanceService } from './binance.service';
 import {
   WithdrawUSDTDto,
+  ConvertAndWithdrawDto,
 } from './dto/convert-to-usdt.dto';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SuperAdminGuard } from '../../common/guards/super-admin.guard';
@@ -143,6 +144,61 @@ export class BinanceController {
         txId: withdrawal.txId || null,
         timestamp: withdrawal.applyTime,
       },
+    };
+  }
+
+  @Post('convert-and-withdraw')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Convert fiat currency to USDT and withdraw to blockchain',
+    description:
+      'Combined operation: Converts fiat currency (e.g., KES) to USDT in internal wallets, ' +
+      'then immediately withdraws the USDT to an external TRON wallet address. ' +
+      'This is the integrated flow for cross-border payments.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Conversion and withdrawal completed successfully',
+  })
+  async convertAndWithdraw(
+    @Body() dto: ConvertAndWithdrawDto,
+    @CurrentUser() user: User,
+  ) {
+    const result = await this.binanceService.convertAndWithdraw(
+      dto,
+      user.businessId,
+      user.id,
+    );
+
+    return {
+      success: true,
+      data: {
+        // Conversion details
+        conversion: {
+          transactionId: result.conversion.transactionId,
+          reference: result.conversion.reference,
+          sourceAmount: result.conversion.sourceAmount,
+          sourceCurrency: result.conversion.sourceCurrency,
+          targetAmount: result.conversion.targetAmount,
+          targetCurrency: result.conversion.targetCurrency,
+          conversionFee: result.conversion.conversionFee,
+          exchangeRate: result.conversion.exchangeRate,
+        },
+        // Withdrawal details
+        withdrawal: {
+          withdrawalId: result.withdrawal.id,
+          amount: result.withdrawal.amount,
+          fee: result.withdrawal.transactionFee,
+          address: result.withdrawal.address,
+          network: dto.network,
+          status: result.withdrawal.status,
+          txId: result.withdrawal.txId || null,
+          timestamp: result.withdrawal.applyTime,
+        },
+        // Final USDT wallet balance
+        usdtWalletBalance: result.usdtWalletBalance,
+      },
+      message: `Successfully converted ${dto.amount} ${dto.fromCurrency} to USDT and initiated withdrawal to ${dto.address}`,
     };
   }
 
