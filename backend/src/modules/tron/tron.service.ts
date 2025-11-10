@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
-const TronWeb = require('tronweb');
+// const TronWeb = require('tronweb');
+const { TronWeb } = require('tronweb');
 import tronConfig from '../../config/tron.config';
 
 @Injectable()
