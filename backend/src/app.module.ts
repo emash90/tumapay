@@ -13,6 +13,7 @@ import { PaymentProvidersModule } from './modules/payment-providers/payment-prov
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { ConversionModule } from './modules/conversion/conversion.module';
 import { BinanceModule } from './modules/binance/binance.module';
+import { TronModule } from './modules/tron/tron.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { BinanceModule } from './modules/binance/binance.module';
     ExchangeRateModule,
     ConversionModule,
     BinanceModule,
+    TronModule,
   ],
   controllers: [AppController],
   providers: [AppService],
