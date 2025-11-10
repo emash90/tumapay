@@ -1,8 +1,9 @@
-import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Business } from './business.entity';
 import { User } from './user.entity';
 import { Wallet } from './wallet.entity';
+import { BlockchainTransaction } from './blockchain-transaction.entity';
 
 export enum TransactionType {
   PAYOUT = 'payout',           // Business sends money to customer
@@ -224,4 +225,8 @@ export class Transaction extends BaseEntity {
   // Binance withdrawal ID (for USDT withdrawals to blockchain)
   @Column({ name: 'binance_withdrawal_id', type: 'uuid', nullable: true })
   binanceWithdrawalId: string | null;
+
+  // Blockchain transactions associated with this transaction
+  @OneToMany(() => BlockchainTransaction, (blockchainTx) => blockchainTx.transaction)
+  blockchainTransactions: BlockchainTransaction[];
 }
