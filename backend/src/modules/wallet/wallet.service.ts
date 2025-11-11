@@ -474,6 +474,7 @@ export class WalletService {
       bankName?: string;
       bankBranch?: string;
     },
+    additionalMetadata?: Record<string, any>,
   ): Promise<{ transaction: Transaction; providerTransactionId: string }> {
     this.logger.log(
       `Initiating withdrawal: ${amount} KES from wallet ${walletId} for business ${business.id}`,
@@ -563,6 +564,9 @@ export class WalletService {
           commandId: 'SalaryPayment', // SalaryPayment works in sandbox
           remarks: description || 'Wallet withdrawal',
           occasion: 'Withdrawal',
+          businessId: business.id,
+          userId,
+          description,
           // Include bank details if provided
           ...(bankDetails && {
             accountNumber: bankDetails.accountNumber,
@@ -570,6 +574,8 @@ export class WalletService {
             bankName: bankDetails.bankName,
             bankBranch: bankDetails.bankBranch,
           }),
+          // Include any additional metadata (e.g., tronAddress for USDT)
+          ...(additionalMetadata && additionalMetadata),
         },
       };
 

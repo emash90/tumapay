@@ -110,3 +110,41 @@ export class BankTransferWithdrawalDto {
   @MaxLength(200, { message: 'Description cannot exceed 200 characters' })
   description?: string;
 }
+
+/**
+ * USDT (TRON Network) Withdrawal DTO
+ * Used for POST /wallets/:walletId/withdraw/usdt
+ */
+export class UsdtWithdrawalDto {
+  @ApiProperty({
+    description: 'Amount to withdraw in USDT',
+    example: 100,
+    minimum: 10,
+    maximum: 10000,
+  })
+  @IsNotEmpty({ message: 'Amount is required' })
+  @IsNumber({}, { message: 'Amount must be a number' })
+  @Min(10, { message: 'Minimum withdrawal amount is 10 USDT' })
+  @Max(10000, { message: 'Maximum withdrawal amount is 10,000 USDT per transaction' })
+  amount: number;
+
+  @ApiProperty({
+    description: 'TRON wallet address to receive USDT (TRC20)',
+    example: 'TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW',
+    pattern: '^T[A-Za-z0-9]{33}$',
+  })
+  @IsNotEmpty({ message: 'TRON address is required' })
+  @IsString({ message: 'TRON address must be a string' })
+  tronAddress: string;
+
+  @ApiProperty({
+    description: 'Optional description for the withdrawal',
+    example: 'USDT withdrawal to external wallet',
+    required: false,
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString({ message: 'Description must be a string' })
+  @MaxLength(200, { message: 'Description cannot exceed 200 characters' })
+  description?: string;
+}

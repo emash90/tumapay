@@ -27,6 +27,13 @@ export enum PaymentMethod {
    * - Features: Manual bank transfers
    */
   BANK_TRANSFER = 'bank_transfer',
+
+  /**
+   * USDT on TRON blockchain (TRC20)
+   * - Supports: USDT currency
+   * - Features: Cryptocurrency withdrawals via TRON network
+   */
+  USDT_TRON = 'usdt_tron',
 }
 
 /**

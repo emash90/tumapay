@@ -34,6 +34,7 @@ import {
   BankTransferDepositDto,
   MpesaWithdrawalDto,
   BankTransferWithdrawalDto,
+  UsdtWithdrawalDto,
 } from './dto';
 import { WithdrawalLimitsService } from './services/withdrawal-limits.service';
 import { ProviderSelectionService } from '../payment-providers/services/provider-selection.service';
@@ -861,6 +862,91 @@ export class WalletController {
         estimatedTime: '1-3 business days',
         instructions: 'Bank transfer is being processed. You will receive confirmation once completed.',
         bankDetails,
+      },
+    };
+  }
+
+  @Post(':walletId/withdraw/usdt')
+  @UseGuards(BusinessVerifiedGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Withdraw USDT via TRON blockchain',
+    description: 'Initiate USDT (TRC20) withdrawal to external TRON wallet. Requires verified business.',
+  })
+  @ApiParam({ name: 'walletId', description: 'Wallet UUID to withdraw from' })
+  @ApiResponse({
+    status: 201,
+    description: 'USDT withdrawal initiated successfully. Transaction will be broadcast to TRON blockchain.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid amount, TRON address, or insufficient balance',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Business not verified or wallet does not belong to business',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Wallet not found',
+  })
+  async withdrawFromWalletViaUsdt(
+    @Param('walletId') walletId: string,
+    @Body() usdtWithdrawalDto: UsdtWithdrawalDto,
+    @CurrentUser() user: User,
+    @Req() request: Request & { business: Business },
+  ) {
+    const { amount, tronAddress, description } = usdtWithdrawalDto;
+
+    // Get wallet to verify ownership before processing
+    const wallet = await this.walletService.getWalletById(walletId);
+
+    // Authorization check - wallet must belong to user's business
+    if (wallet.businessId !== request.business.id) {
+      throw new ForbiddenException('You do not have permission to withdraw from this wallet');
+    }
+
+    // Verify wallet is USDT wallet
+    if (wallet.currency !== WalletCurrency.USDT) {
+      throw new ForbiddenException('This endpoint is only for USDT wallets. Use the appropriate endpoint for your wallet currency.');
+    }
+
+    const result = await this.walletService.initiateWithdrawal(
+      walletId,
+      request.business,
+      user.id,
+      amount,
+      undefined, // No phone number for USDT
+      description,
+      PaymentMethod.USDT_TRON,
+      undefined, // No bank details for USDT
+      {
+        tronAddress, // Pass TRON address in metadata
+      },
+    );
+
+    return {
+      success: true,
+      message: 'USDT withdrawal initiated. Transaction will be confirmed on TRON blockchain.',
+      data: {
+        transaction: {
+          id: result.transaction.id,
+          reference: result.transaction.reference,
+          amount: result.transaction.amount,
+          status: result.transaction.status,
+          currency: result.transaction.currency,
+          walletId: result.transaction.walletId,
+        },
+        txHash: result.providerTransactionId,
+        toAddress: tronAddress,
+        network: 'TRON (TRC20)',
+        estimatedTime: '1-2 minutes',
+        instructions: 'Transaction is being broadcast to TRON blockchain. You can track it using the transaction hash.',
+        explorerUrl: `https://tronscan.org/#/transaction/${result.providerTransactionId}`,
       },
     };
   }

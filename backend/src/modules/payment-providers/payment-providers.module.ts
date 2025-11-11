@@ -1,7 +1,9 @@
 import { Module, OnModuleInit, forwardRef } from '@nestjs/common';
 import { PaymentProviderFactory } from './payment-provider.factory';
 import { MpesaPaymentProvider } from './providers/mpesa.provider';
+import { TronPaymentProvider } from './providers/tron.provider';
 import { MpesaModule } from '../mpesa/mpesa.module';
+import { TronModule } from '../tron/tron.module';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { ProviderSelectionService } from './services/provider-selection.service';
 import { ProviderRetryService } from './services/provider-retry.service';
@@ -31,6 +33,7 @@ import { PaymentProvidersController } from './payment-providers.controller';
 @Module({
   imports: [
     forwardRef(() => MpesaModule), // Use forwardRef to resolve circular dependency with WalletModule
+    TronModule, // TRON blockchain integration for USDT
   ],
   controllers: [
     PaymentProvidersController, // Universal callback controller for all providers
@@ -41,6 +44,7 @@ import { PaymentProvidersController } from './payment-providers.controller';
     ProviderRetryService,
     ProviderMetricsService,
     MpesaPaymentProvider,
+    TronPaymentProvider,
   ],
   exports: [
     PaymentProviderFactory, // Export factory for use in other modules
@@ -53,6 +57,7 @@ export class PaymentProvidersModule implements OnModuleInit {
   constructor(
     private readonly factory: PaymentProviderFactory,
     private readonly mpesaProvider: MpesaPaymentProvider,
+    private readonly tronProvider: TronPaymentProvider,
   ) {}
 
   /**
@@ -61,6 +66,9 @@ export class PaymentProvidersModule implements OnModuleInit {
   onModuleInit() {
     // Register M-Pesa provider
     this.factory.registerProvider(PaymentMethod.MPESA, this.mpesaProvider);
+
+    // Register TRON provider for USDT withdrawals
+    this.factory.registerProvider(PaymentMethod.USDT_TRON, this.tronProvider);
 
     // Future providers can be registered here:
     // this.factory.registerProvider(PaymentMethod.ABSA, this.absaProvider);

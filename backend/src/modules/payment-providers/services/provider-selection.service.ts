@@ -240,6 +240,7 @@ export class ProviderSelectionService {
       mpesa: PaymentMethod.MPESA,
       absa: PaymentMethod.ABSA,
       bank_transfer: PaymentMethod.BANK_TRANSFER,
+      tron: PaymentMethod.USDT_TRON,
     };
 
     return methodMap[providerName] || null;
