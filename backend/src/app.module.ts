@@ -14,6 +14,7 @@ import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module
 import { ConversionModule } from './modules/conversion/conversion.module';
 import { BinanceModule } from './modules/binance/binance.module';
 import { TronModule } from './modules/tron/tron.module';
+import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { TronModule } from './modules/tron/tron.module';
     // Feature modules
     AuthModule,
     BusinessModule,
+    BeneficiariesModule,
     TransactionsModule,
     PaymentProvidersModule,
     WalletModule,

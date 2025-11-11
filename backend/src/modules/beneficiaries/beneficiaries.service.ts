@@ -323,7 +323,7 @@ export class BeneficiariesService {
     await this.checkDuplicateIban(businessId, beneficiary.iban, id);
 
     // Restore by clearing deletedAt
-    beneficiary.deletedAt = null;
+    beneficiary.deletedAt = undefined;
 
     return await this.beneficiaryRepository.save(beneficiary);
   }
