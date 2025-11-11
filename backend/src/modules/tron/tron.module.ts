@@ -12,6 +12,8 @@ import tronConfig from '../../config/tron.config';
 import { BlockchainTransaction } from '../../database/entities/blockchain-transaction.entity';
 import { Transaction } from '../../database/entities/transaction.entity';
 import { AuthModule } from '../auth/auth.module';
+import { TransactionsModule } from '../transactions/transactions.module';
+import { WalletModule } from '../wallet/wallet.module';
 
 /**
  * TRON Module
@@ -38,6 +40,8 @@ import { AuthModule } from '../auth/auth.module';
     TypeOrmModule.forFeature([BlockchainTransaction, Transaction]),
     ScheduleModule.forRoot(), // Enable cron jobs
     forwardRef(() => AuthModule), // Import AuthModule for AuthGuard and SessionService
+    forwardRef(() => TransactionsModule), // Import for TransactionsService
+    forwardRef(() => WalletModule), // Import for WalletService
   ],
   controllers: [TronController],
   providers: [

@@ -19,6 +19,16 @@ services:
       - tumapay_network
     volumes:
       - ./backend/src:/app/src  # For development hot-reload (remove in production)
+    # DNS configuration to help with external API connectivity
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    # Add extra hosts for TRON API (helps with some network issues)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Disable IPv6 to prevent connection timeouts
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/v1"]
       interval: 30s

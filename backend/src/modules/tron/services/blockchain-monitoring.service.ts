@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TronService } from '../tron.service';
 import { BlockchainTransactionService } from '../blockchain-transaction.service';
+import { TransactionsService } from '../../transactions/transactions.service';
+import { WalletService } from '../../wallet/wallet.service';
 import {
   BlockchainTransaction,
   BlockchainTransactionStatus,
   BlockchainNetwork,
 } from '../../../database/entities/blockchain-transaction.entity';
+import { TransactionStatus } from '../../../database/entities/transaction.entity';
+import { WalletTransactionType } from '../../../database/entities/wallet-transaction.entity';
 
 /**
  * Blockchain Transaction Monitoring Service
@@ -37,6 +41,8 @@ export class BlockchainMonitoringService {
   constructor(
     private readonly tronService: TronService,
     private readonly blockchainTxService: BlockchainTransactionService,
+    private readonly transactionsService: TransactionsService,
+    private readonly walletService: WalletService,
   ) {}
 
   /**
@@ -230,9 +236,12 @@ export class BlockchainMonitoringService {
         `✅ Transaction ${blockchainTx.txHash} marked as CONFIRMED in database`,
       );
 
-      // TODO: Update main transaction status to 'completed'
-      // TODO: Send success notification to user
-      // We'll implement this in the next step
+      // Update main transaction status to 'completed'
+      await this.updateMainTransactionToCompleted(blockchainTx);
+
+      this.logger.log(
+        `✅ Post-confirmation workflow completed for transaction ${blockchainTx.txHash}`,
+      );
     } catch (error) {
       this.logger.error(
         `❌ Failed to update confirmed transaction ${blockchainTx.txHash}`,
@@ -269,10 +278,12 @@ export class BlockchainMonitoringService {
         `❌ Transaction ${blockchainTx.txHash} marked as FAILED in database`,
       );
 
-      // TODO: Update main transaction status to 'failed'
-      // TODO: Reverse the wallet debit (refund the user)
-      // TODO: Send failure notification to user
-      // We'll implement this in the next step
+      // Update main transaction status to 'failed' and reverse wallet debit
+      await this.updateMainTransactionToFailed(blockchainTx, errorMessage);
+
+      this.logger.log(
+        `✅ Post-failure workflow completed for transaction ${blockchainTx.txHash}`,
+      );
     } catch (error) {
       this.logger.error(
         `❌ Failed to update failed transaction ${blockchainTx.txHash}`,
@@ -318,5 +329,127 @@ export class BlockchainMonitoringService {
    */
   isMonitoringActive(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * Update main transaction to COMPLETED status
+   * Called when blockchain transaction is confirmed
+   */
+  private async updateMainTransactionToCompleted(
+    blockchainTx: BlockchainTransaction,
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `Updating main transaction ${blockchainTx.transactionId} to COMPLETED`,
+      );
+
+      await this.transactionsService.updateTransactionStatus(
+        blockchainTx.transactionId,
+        {
+          status: TransactionStatus.COMPLETED,
+          completedAt: new Date(),
+          metadata: {
+            blockchainTxHash: blockchainTx.txHash,
+            blockchainNetwork: blockchainTx.network,
+            confirmations: blockchainTx.confirmations,
+            blockNumber: blockchainTx.blockNumber,
+            completedVia: 'blockchain_monitoring',
+          },
+        },
+      );
+
+      this.logger.log(
+        `✅ Main transaction ${blockchainTx.transactionId} updated to COMPLETED`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to update main transaction ${blockchainTx.transactionId} to COMPLETED`,
+        error.stack,
+      );
+      // Don't throw - blockchain transaction is already confirmed
+      // This is logged for manual intervention if needed
+    }
+  }
+
+  /**
+   * Update main transaction to FAILED status and reverse wallet debit
+   * Called when blockchain transaction fails
+   */
+  private async updateMainTransactionToFailed(
+    blockchainTx: BlockchainTransaction,
+    errorMessage: string,
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `Updating main transaction ${blockchainTx.transactionId} to FAILED`,
+      );
+
+      // 1. Update transaction status to FAILED
+      const transaction = await this.transactionsService.updateTransactionStatus(
+        blockchainTx.transactionId,
+        {
+          status: TransactionStatus.FAILED,
+          failedAt: new Date(),
+          errorMessage: `Blockchain transaction failed: ${errorMessage}`,
+          metadata: {
+            blockchainTxHash: blockchainTx.txHash,
+            blockchainNetwork: blockchainTx.network,
+            failureReason: errorMessage,
+            failedVia: 'blockchain_monitoring',
+          },
+        },
+      );
+
+      this.logger.log(
+        `✅ Main transaction ${blockchainTx.transactionId} updated to FAILED`,
+      );
+
+      // 2. Reverse wallet debit (refund the user)
+      // Only reverse if the transaction has a walletId (meaning wallet was debited)
+      if (transaction.walletId) {
+        this.logger.log(
+          `Reversing wallet debit for transaction ${blockchainTx.transactionId}`,
+        );
+
+        try {
+          await this.walletService.creditWallet(
+            transaction.walletId,
+            Number(blockchainTx.amount),
+            WalletTransactionType.REVERSAL,
+            `Blockchain transfer failed - refund for ${transaction.reference}`,
+            transaction.id,
+            {
+              originalTransactionId: transaction.id,
+              blockchainTxHash: blockchainTx.txHash,
+              reversalReason: 'Blockchain transaction failed',
+              errorMessage,
+            },
+          );
+
+          this.logger.log(
+            `✅ Wallet ${transaction.walletId} credited back: ${blockchainTx.amount} ${blockchainTx.currency}`,
+          );
+        } catch (reversalError) {
+          this.logger.error(
+            `❌ CRITICAL: Failed to reverse wallet debit for transaction ${transaction.reference}`,
+            reversalError.stack,
+          );
+          // This is CRITICAL - manual intervention required
+          // The blockchain transaction failed but we couldn't refund the wallet
+          // Log and alert operations team
+        }
+      } else {
+        this.logger.warn(
+          `Transaction ${blockchainTx.transactionId} has no walletId - skipping wallet reversal`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `❌ Failed to update main transaction ${blockchainTx.transactionId} to FAILED`,
+        error.stack,
+      );
+      // Don't throw - blockchain transaction is already marked as failed
+      // This is logged for manual intervention if needed
+    }
   }
 }

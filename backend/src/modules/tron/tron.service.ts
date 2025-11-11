@@ -39,6 +39,9 @@ export class TronService {
       this.tronWeb = new TronWeb({
         fullHost: this.config.apiUrl,
         privateKey: this.config.privateKey,
+        headers: { 'TRON-PRO-API-KEY': '' }, // Optional: Add API key if you have one
+        // Increase timeout to handle slow IPv6 fallback
+        timeout: 30000, // 30 seconds
       });
 
       this.logger.log(
