@@ -12,6 +12,7 @@ import {
   SendUSDTResult,
   USDTBalance,
   TronTransactionStatus,
+  TransferRequirementsValidation,
 } from './interfaces';
 
 @Injectable()
@@ -548,5 +549,404 @@ export class TronService {
       this.logger.error(`Connection check failed: ${error.message}`);
       return false;
     }
+  }
+
+  // ========================================
+  // GAS FEE MANAGEMENT METHODS
+  // ========================================
+
+  /**
+   * Estimate gas fee (in TRX) for a USDT transfer
+   *
+   * This estimates how much TRX will be needed to execute the transaction.
+   * TRON uses "energy" for smart contract execution, which costs TRX.
+   *
+   * @param toAddress - Recipient TRON address
+   * @param amount - Amount of USDT to transfer
+   * @returns Estimated TRX cost (approximate)
+   *
+   * @example
+   * const estimatedTRX = await tronService.estimateGasFee('TAddress...', 100);
+   * console.log(`This transfer will cost ~${estimatedTRX} TRX`);
+   */
+  async estimateGasFee(toAddress: string, amount: number): Promise<number> {
+    try {
+      // Validate address
+      const validAddress = this.validateAndConvertAddress(toAddress);
+
+      // Get USDT contract
+      const contract = await this.tronWeb.contract().at(this.config.usdtContract);
+
+      // Convert amount to smallest unit
+      const amountInSmallestUnit = this.toSmallestUnit(amount);
+
+      try {
+        // Try to estimate energy usage
+        // This calls the contract's transfer function without executing it
+        const result = await contract
+          .transfer(validAddress, amountInSmallestUnit)
+          .estimateEnergy(this.config.walletAddress);
+
+        // Convert energy to approximate TRX cost
+        // On TRON: ~1000 energy costs ~1 TRX (varies by network congestion)
+        // For USDT transfers, typical energy: 13,000-15,000
+        // So typical cost: ~13-15 TRX without energy delegation
+        const estimatedTRX = result / 1000;
+
+        this.logger.debug(
+          `Gas estimation: ${result} energy ≈ ${estimatedTRX.toFixed(2)} TRX`,
+        );
+
+        return Math.ceil(estimatedTRX); // Round up to be safe
+      } catch (estimateError) {
+        // If estimation fails, return conservative estimate
+        this.logger.warn(
+          `Could not estimate gas precisely: ${estimateError.message}. Using conservative estimate.`,
+        );
+
+        // Conservative estimate: 15 TRX for USDT transfer
+        return 15;
+      }
+    } catch (error) {
+      this.logger.error(`Failed to estimate gas fee: ${error.message}`);
+      // Return conservative estimate on error
+      return 15;
+    }
+  }
+
+  /**
+   * Check if platform wallet has sufficient TRX for gas
+   *
+   * Simple check: Do we have enough TRX to pay for this transaction?
+   *
+   * @param estimatedTRX - Estimated TRX needed (from estimateGasFee)
+   * @returns true if we have enough TRX, false otherwise
+   *
+   * @example
+   * const estimated = await tronService.estimateGasFee('TAddress...', 100);
+   * const hasGas = await tronService.hasSufficientGas(estimated);
+   * if (!hasGas) {
+   *   throw new Error('Insufficient TRX for gas');
+   * }
+   */
+  async hasSufficientGas(estimatedTRX: number): Promise<boolean> {
+    try {
+      const currentBalance = await this.getTRXBalance();
+
+      // Add 10% buffer for safety
+      const requiredWithBuffer = estimatedTRX * 1.1;
+
+      const sufficient = currentBalance >= requiredWithBuffer;
+
+      if (!sufficient) {
+        this.logger.warn(
+          `⚠️ Insufficient TRX! Have: ${currentBalance.toFixed(2)} TRX, Need: ${requiredWithBuffer.toFixed(2)} TRX`,
+        );
+      }
+
+      return sufficient;
+    } catch (error) {
+      this.logger.error(`Failed to check gas sufficiency: ${error.message}`);
+      // Fail safe: assume insufficient
+      return false;
+    }
+  }
+
+  /**
+   * Get TRX balance with status classification
+   *
+   * Returns balance + status: healthy, low, or critical
+   *
+   * @returns Object with balance and status
+   */
+  async getTRXBalanceStatus(): Promise<{
+    balance: number;
+    status: 'healthy' | 'low' | 'critical';
+    message: string;
+  }> {
+    const balance = await this.getTRXBalance();
+
+    const LOW_THRESHOLD = 100; // Warn below 100 TRX
+    const CRITICAL_THRESHOLD = 20; // Critical below 20 TRX
+
+    if (balance < CRITICAL_THRESHOLD) {
+      return {
+        balance,
+        status: 'critical',
+        message: `🚨 CRITICAL: Only ${balance.toFixed(2)} TRX remaining! Top up immediately!`,
+      };
+    }
+
+    if (balance < LOW_THRESHOLD) {
+      return {
+        balance,
+        status: 'low',
+        message: `⚠️ WARNING: TRX balance is low (${balance.toFixed(2)} TRX). Consider topping up soon.`,
+      };
+    }
+
+    return {
+      balance,
+      status: 'healthy',
+      message: `✅ TRX balance is healthy: ${balance.toFixed(2)} TRX`,
+    };
+  }
+
+  // ========================================
+  // PRE-FLIGHT VALIDATION
+  // ========================================
+
+  /**
+   * Validate all requirements before executing a transfer
+   *
+   * Performs comprehensive checks:
+   * - USDT balance sufficient
+   * - TRX balance sufficient for gas
+   * - Valid recipient address
+   * - Valid amount (> 0, precision check)
+   *
+   * @param toAddress - Recipient TRON address
+   * @param amount - Amount of USDT to transfer
+   * @returns Validation result with list of errors if any
+   *
+   * @example
+   * const validation = await tronService.validateTransferRequirements('TAddress...', 100);
+   * if (!validation.valid) {
+   *   console.error('Transfer validation failed:', validation.errors);
+   *   throw new Error(validation.errors.join(', '));
+   * }
+   */
+  async validateTransferRequirements(
+    toAddress: string,
+    amount: number,
+  ): Promise<TransferRequirementsValidation> {
+    const errors: string[] = [];
+
+    try {
+      // 1. Validate recipient address
+      if (!toAddress) {
+        errors.push('Recipient address is required');
+      } else if (!this.validateAddress(toAddress)) {
+        errors.push(`Invalid TRON address: ${toAddress}`);
+      }
+
+      // 2. Validate amount
+      if (amount <= 0) {
+        errors.push('Transfer amount must be greater than 0');
+      }
+
+      if (amount < 1) {
+        errors.push('Transfer amount must be at least 1 USDT');
+      }
+
+      // Check for precision issues (USDT has 6 decimals)
+      const amountStr = amount.toString();
+      if (amountStr.includes('.')) {
+        const decimals = amountStr.split('.')[1];
+        if (decimals && decimals.length > 6) {
+          errors.push(
+            `Amount has too many decimal places (max 6 for USDT): ${amount}`,
+          );
+        }
+      }
+
+      // 3. Check USDT balance
+      try {
+        const balanceInfo = await this.getUSDTBalance();
+        if (balanceInfo.balance < amount) {
+          errors.push(
+            `Insufficient USDT balance. Available: ${balanceInfo.balance.toFixed(6)} USDT, Required: ${amount.toFixed(6)} USDT`,
+          );
+        }
+      } catch (error) {
+        errors.push(`Failed to check USDT balance: ${error.message}`);
+      }
+
+      // 4. Check TRX balance for gas fees
+      try {
+        const trxBalance = await this.getTRXBalance();
+        const estimatedGas = await this.estimateGasFee(toAddress, amount);
+
+        // Add 20% buffer for safety
+        const requiredTRX = estimatedGas * 1.2;
+
+        if (trxBalance < requiredTRX) {
+          errors.push(
+            `Insufficient TRX for gas fees. Available: ${trxBalance.toFixed(2)} TRX, Required: ~${requiredTRX.toFixed(2)} TRX`,
+          );
+        }
+      } catch (error) {
+        // Non-fatal: log warning but don't fail validation
+        this.logger.warn(
+          `Could not validate TRX balance: ${error.message}. Proceeding anyway.`,
+        );
+      }
+
+      return {
+        valid: errors.length === 0,
+        errors,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Unexpected error during validation: ${error.message}`,
+        error.stack,
+      );
+      errors.push(`Validation error: ${error.message}`);
+      return {
+        valid: false,
+        errors,
+      };
+    }
+  }
+
+  // ========================================
+  // RETRY LOGIC FOR NETWORK FAILURES
+  // ========================================
+
+  /**
+   * Send USDT with automatic retry on network failures
+   *
+   * Retries with exponential backoff for transient network errors.
+   * Does NOT retry on validation errors (invalid address, insufficient balance, etc).
+   *
+   * @param toAddress - Recipient TRON address
+   * @param amount - Amount of USDT to transfer
+   * @param options - Transfer options (feeLimit, note)
+   * @param maxRetries - Maximum number of retry attempts (default: 3)
+   * @returns Promise with transfer result
+   *
+   * @example
+   * const result = await tronService.sendUSDTWithRetry('TAddress...', 100);
+   * console.log(`Transfer successful: ${result.txHash}`);
+   */
+  async sendUSDTWithRetry(
+    toAddress: string,
+    amount: number,
+    options?: {
+      feeLimit?: number;
+      note?: string;
+    },
+    maxRetries: number = 3,
+  ): Promise<SendUSDTResult> {
+    let lastError: Error | undefined;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      attempt++;
+
+      try {
+        this.logger.log(
+          `Attempting USDT transfer (attempt ${attempt}/${maxRetries})...`,
+        );
+
+        const result = await this.sendUSDT(toAddress, amount, options);
+
+        if (attempt > 1) {
+          this.logger.log(
+            `✅ Transfer succeeded on retry attempt ${attempt}`,
+          );
+        }
+
+        return result;
+      } catch (error) {
+        lastError = error;
+
+        // Check if error is retryable
+        const isRetryable = this.isRetryableError(error);
+
+        if (!isRetryable) {
+          this.logger.warn(
+            `Non-retryable error encountered: ${error.message}. Not retrying.`,
+          );
+          throw error;
+        }
+
+        // If this was the last attempt, throw the error
+        if (attempt >= maxRetries) {
+          this.logger.error(
+            `❌ Transfer failed after ${maxRetries} attempts: ${error.message}`,
+          );
+          throw error;
+        }
+
+        // Calculate exponential backoff delay: 2^attempt seconds
+        const delayMs = Math.pow(2, attempt) * 1000;
+
+        this.logger.warn(
+          `⚠️ Attempt ${attempt} failed: ${error.message}. Retrying in ${delayMs / 1000}s...`,
+        );
+
+        await this.sleep(delayMs);
+      }
+    }
+
+    // Should never reach here, but just in case
+    throw (
+      lastError ||
+      new InternalServerErrorException(
+        'Transfer failed with no error details',
+      )
+    );
+  }
+
+  /**
+   * Determine if an error is retryable
+   *
+   * Retryable errors:
+   * - Network timeouts
+   * - Connection errors
+   * - Temporary API errors
+   *
+   * Non-retryable errors:
+   * - Validation errors (invalid address, insufficient balance)
+   * - Business logic errors
+   */
+  private isRetryableError(error: any): boolean {
+    // Don't retry validation errors
+    if (error instanceof BadRequestException) {
+      return false;
+    }
+
+    // Check error message for retryable patterns
+    const errorMessage = error.message?.toLowerCase() || '';
+
+    // Network errors are retryable
+    const retryablePatterns = [
+      'timeout',
+      'network',
+      'connection',
+      'econnrefused',
+      'enotfound',
+      'etimedout',
+      'socket hang up',
+      'temporarily unavailable',
+    ];
+
+    const isNetworkError = retryablePatterns.some((pattern) =>
+      errorMessage.includes(pattern),
+    );
+
+    if (isNetworkError) {
+      return true;
+    }
+
+    // Non-retryable business logic errors
+    const nonRetryablePatterns = [
+      'insufficient balance',
+      'invalid address',
+      'invalid amount',
+      'amount must be',
+    ];
+
+    const isBusinessError = nonRetryablePatterns.some((pattern) =>
+      errorMessage.includes(pattern),
+    );
+
+    if (isBusinessError) {
+      return false;
+    }
+
+    // Default: retry on InternalServerErrorException (might be transient)
+    return error instanceof InternalServerErrorException;
   }
 }

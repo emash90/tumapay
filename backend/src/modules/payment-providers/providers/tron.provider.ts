@@ -4,6 +4,8 @@ import { PaymentProviderConfig } from '../dto/payment-provider-config.dto';
 import { PaymentResponse } from '../dto/payment-response.dto';
 import { TronService } from '../../tron/tron.service';
 import { BlockchainTransactionService } from '../../tron/blockchain-transaction.service';
+import { GasMonitoringService } from '../../tron/services/gas-monitoring.service';
+import { TronTransferService } from '../../tron/services/tron-transfer.service';
 import {
   IProviderCapabilities,
   ProviderTransactionType,
@@ -17,6 +19,13 @@ import { BlockchainNetwork } from '../../../database/entities/blockchain-transac
  * allowing USDT (TRC20) transfers to be used through the payment provider factory pattern.
  *
  * It translates generic payment requests into TRON blockchain transactions.
+ *
+ * Features:
+ * - Pre-flight validation (address, balance, gas)
+ * - Automatic retry on network failures
+ * - Pessimistic locking to prevent duplicate transfers
+ * - Gas fee checking before transfer
+ * - Comprehensive error handling
  */
 @Injectable()
 export class TronPaymentProvider implements IPaymentProvider {
@@ -25,6 +34,8 @@ export class TronPaymentProvider implements IPaymentProvider {
   constructor(
     private readonly tronService: TronService,
     private readonly blockchainTxService: BlockchainTransactionService,
+    private readonly gasMonitoringService: GasMonitoringService,
+    private readonly transferService: TronTransferService,
   ) {}
 
   /**
@@ -55,24 +66,25 @@ export class TronPaymentProvider implements IPaymentProvider {
   /**
    * Initiate a withdrawal using TRON USDT
    *
+   * Uses TronTransferService with:
+   * - Pre-flight validation (address, balances, gas fees)
+   * - Automatic retry on network failures (3 attempts with exponential backoff)
+   * - Pessimistic locking to prevent duplicate transfers
+   * - Comprehensive error handling
+   *
    * @param config - Generic payment configuration
    * @returns Promise with standardized payment response
    */
   async initiateWithdrawal(config: PaymentProviderConfig): Promise<PaymentResponse> {
     try {
       this.logger.log(
-        `Initiating TRON USDT withdrawal for transaction ${config.transactionId}`,
+        `🚀 Initiating TRON USDT withdrawal for transaction ${config.transactionId}`,
       );
 
       // Extract TRON address from metadata
       const tronAddress = config.metadata?.tronAddress;
       if (!tronAddress) {
         throw new Error('TRON address is required in metadata');
-      }
-
-      // Validate TRON address
-      if (!this.tronService.validateAddress(tronAddress)) {
-        throw new Error(`Invalid TRON address: ${tronAddress}`);
       }
 
       // Extract additional metadata
@@ -86,6 +98,7 @@ export class TronPaymentProvider implements IPaymentProvider {
       }
 
       // Create blockchain transaction record (PENDING status)
+      this.logger.log(`📝 Creating blockchain transaction record...`);
       const blockchainTx = await this.blockchainTxService.create({
         transactionId: config.transactionId,
         businessId,
@@ -102,21 +115,28 @@ export class TronPaymentProvider implements IPaymentProvider {
       });
 
       this.logger.log(
-        `Created blockchain transaction record: ${blockchainTx.id}`,
+        `✅ Blockchain transaction record created: ${blockchainTx.id}`,
       );
 
-      // Send USDT via TRON
-      const sendResult = await this.tronService.sendUSDT(
+      // Execute transfer with TronTransferService (includes validation, retry, and locking)
+      this.logger.log(
+        `🔐 Executing transfer with validation and locking...`,
+      );
+
+      const sendResult = await this.transferService.executeTransferWithLock(
+        config.transactionId,
         tronAddress,
         config.amount,
         {
           feeLimit: this.tronService.getConfig().maxFeeLimit,
           note: config.metadata?.description,
+          useRetry: true, // Enable automatic retry on network failures
+          maxRetries: 3, // Try up to 3 times
         },
       );
 
       this.logger.log(
-        `USDT sent successfully. TxHash: ${sendResult.txHash}`,
+        `✅ USDT sent successfully! TxHash: ${sendResult.txHash}`,
       );
 
       // Update blockchain transaction with txHash
@@ -143,7 +163,7 @@ export class TronPaymentProvider implements IPaymentProvider {
       );
     } catch (error) {
       this.logger.error(
-        `TRON USDT withdrawal failed for transaction ${config.transactionId}: ${error.message}`,
+        `❌ TRON USDT withdrawal failed for transaction ${config.transactionId}: ${error.message}`,
         error.stack,
       );
 
