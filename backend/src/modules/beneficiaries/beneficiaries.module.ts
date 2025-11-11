@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BeneficiariesController } from './beneficiaries.controller';
 import { BeneficiariesService } from './beneficiaries.service';
@@ -8,6 +8,7 @@ import {
   IsValidIbanConstraint,
   IsValidTcKimlikConstraint,
 } from './decorators';
+import { AuthModule } from '../auth/auth.module';
 
 /**
  * Beneficiaries Module
@@ -28,7 +29,10 @@ import {
  * - TcKimlikValidator - For standalone TC Kimlik validation
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Beneficiary])],
+  imports: [
+    TypeOrmModule.forFeature([Beneficiary]),
+    forwardRef(() => AuthModule), 
+],
   controllers: [BeneficiariesController],
   providers: [
     // Core service

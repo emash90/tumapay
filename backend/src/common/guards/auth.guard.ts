@@ -3,6 +3,8 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SessionService } from '../../modules/auth/session.service';
@@ -12,6 +14,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 export class AuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
+    @Inject(forwardRef(() => SessionService))
     private sessionService: SessionService,
   ) {}
 
