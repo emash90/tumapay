@@ -15,6 +15,7 @@ import { ConversionModule } from './modules/conversion/conversion.module';
 import { BinanceModule } from './modules/binance/binance.module';
 import { TronModule } from './modules/tron/tron.module';
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module';
+import { TransfersModule } from './modules/transfers/transfers.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.modul
     ConversionModule,
     BinanceModule,
     TronModule,
+    TransfersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
