@@ -7,21 +7,18 @@ import * as crypto from 'crypto';
 import { Repository } from 'typeorm';
 
 /**
- * Hash password with PBKDF2 + random salt
+ * Use same hashing logic as AuthService
  */
 async function hashPassword(password: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const salt = crypto.randomBytes(16).toString('hex');
     crypto.pbkdf2(password, salt, 100000, 64, 'sha512', (err, derivedKey) => {
-      if (err) return reject(err);
+      if (err) reject(err);
       resolve(`${salt}:${derivedKey.toString('hex')}`);
     });
   });
 }
 
-/**
- * Super admin credentials & business details
- */
 const SUPER_ADMIN_EMAIL = 'admin@tumapay.com';
 const SUPER_ADMIN_PASSWORD = 'Admin123!';
 const BUSINESS_DATA = {
@@ -51,28 +48,13 @@ async function createSuperAdmin() {
     const userRepository: Repository<User> = dataSource.getRepository(User);
     const accountRepository: Repository<Account> = dataSource.getRepository(Account);
     const businessRepository: Repository<Business> = dataSource.getRepository(Business);
-
     const businessService = new BusinessService(businessRepository);
 
-    // Check if super admin already exists
     let adminUser = await userRepository.findOne({ where: { email: SUPER_ADMIN_EMAIL } });
 
-    if (adminUser) {
-      console.log('⚠️  Super admin already exists. Updating password...');
-      const hashedPassword = await hashPassword(SUPER_ADMIN_PASSWORD);
-
-      const account = await accountRepository.findOne({
-        where: { userId: adminUser.id, providerId: 'email' },
-      });
-
-      if (account) {
-        await accountRepository.update(account.id, { password: hashedPassword });
-        console.log('✅ Super admin password updated');
-      }
-    } else {
+    if (!adminUser) {
       console.log('🌱 Creating new super admin user...');
 
-      // Create user
       adminUser = userRepository.create({
         email: SUPER_ADMIN_EMAIL,
         firstName: 'Super',
@@ -82,52 +64,47 @@ async function createSuperAdmin() {
       });
       await userRepository.save(adminUser);
 
-      // Create account with password
-      const hashedPassword = await hashPassword(SUPER_ADMIN_PASSWORD);
-      const adminAccount = accountRepository.create({
+      console.log('✅ Super admin user created');
+    }
+
+    const hashedPassword = await hashPassword(SUPER_ADMIN_PASSWORD);
+
+    let account = await accountRepository.findOne({
+      where: { userId: adminUser.id, providerId: 'email' },
+    });
+
+    if (account) {
+      await accountRepository.update(account.id, { password: hashedPassword });
+      console.log('🔑 Super admin password updated');
+    } else {
+      account = accountRepository.create({
         userId: adminUser.id,
         providerId: 'email',
         providerAccountId: adminUser.email,
         password: hashedPassword,
       });
-      await accountRepository.save(adminAccount);
-
-      console.log('✅ Super admin created successfully');
+      await accountRepository.save(account);
+      console.log('🔑 Super admin account created');
     }
 
-    // Attach business to super admin
-    let business: Business | null = await businessService.getBusinessByUserId(adminUser.id);
-
-    if (business) {
-      console.log(`ℹ️  Business already exists for super admin: ${business.businessName}`);
-    } else {
-      // Create business (without userId in DTO)
-      business = await businessService.createBusiness(BUSINESS_DATA as any); // Type cast to avoid DTO error
-      // Attach user manually
+    let business = await businessService.getBusinessByUserId(adminUser.id);
+    if (!business) {
+      business = await businessService.createBusiness(BUSINESS_DATA as any);
       business.user = adminUser;
       await businessRepository.save(business);
-      console.log(`🌱 Business created for super admin: ${business.businessName} (${business.id})`);
+      console.log(`🏢 Business created for super admin: ${business.businessName}`);
+    } else {
+      console.log(`ℹ️ Business already exists: ${business.businessName}`);
     }
 
-    console.log('\n📋 Super Admin Credentials:');
-    console.log(`   Email: ${SUPER_ADMIN_EMAIL}`);
-    console.log(`   Password: ${SUPER_ADMIN_PASSWORD}`);
-    console.log('\n🔐 Use these credentials to login and test endpoints');
-
+    console.log('\n✅ Super Admin Ready!');
+    console.log('📧 Email:', SUPER_ADMIN_EMAIL);
+    console.log('🔐 Password:', SUPER_ADMIN_PASSWORD);
   } catch (error) {
-    console.error('❌ Error:', error);
-    throw error;
+    console.error('❌ Error seeding super admin:', error);
   } finally {
-    await dataSource.destroy();
+    await AppDataSource.destroy();
   }
 }
 
-createSuperAdmin()
-  .then(() => {
-    console.log('\n✅ Script completed successfully');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('❌ Script failed:', error);
-    process.exit(1);
-  });
+createSuperAdmin();

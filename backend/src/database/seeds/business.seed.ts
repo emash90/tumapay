@@ -2,7 +2,22 @@ import { DataSource } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { Business, BusinessKYBStatus, BusinessTier } from '../entities/business.entity';
 import { Account } from '../entities/account.entity';
-import { hash } from 'crypto';
+// import { hash } from 'crypto';
+import * as crypto from 'crypto';
+
+
+
+
+async function hashPassword(password: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    crypto.pbkdf2(password, salt, 100000, 64, 'sha512', (err, derivedKey) => {
+      if (err) reject(err);
+      resolve(`${salt}:${derivedKey.toString('hex')}`);
+    });
+  });
+}
+
 
 /**
  * Seed data for Business Module Phase 1 testing
@@ -22,6 +37,7 @@ export async function seedBusinessData(dataSource: DataSource): Promise<void> {
     lastName: 'Admin',
     emailVerified: true,
     isSuperAdmin: true,
+    phoneNumber: '+254726895720',
   });
   await userRepository.save(superAdminUser);
 
@@ -30,8 +46,7 @@ export async function seedBusinessData(dataSource: DataSource): Promise<void> {
     userId: superAdminUser.id,
     providerId: 'email',
     providerAccountId: superAdminUser.email,
-    // In production, use proper hashing (e.g., argon2)
-    password: 'hashed_password_admin123', // This is a placeholder
+    password: await hashPassword('john123'),
   });
   await accountRepository.save(superAdminAccount);
 
@@ -73,7 +88,7 @@ export async function seedBusinessData(dataSource: DataSource): Promise<void> {
     userId: user1.id,
     providerId: 'email',
     providerAccountId: user1.email,
-    password: 'hashed_password_john123',
+    password: await hashPassword('john123'),
   });
   await accountRepository.save(account1);
 
@@ -114,7 +129,7 @@ export async function seedBusinessData(dataSource: DataSource): Promise<void> {
     userId: user2.id,
     providerId: 'email',
     providerAccountId: user2.email,
-    password: 'hashed_password_jane123',
+    password: await hashPassword('john123'),
   });
   await accountRepository.save(account2);
 
@@ -155,7 +170,7 @@ export async function seedBusinessData(dataSource: DataSource): Promise<void> {
     userId: user3.id,
     providerId: 'email',
     providerAccountId: user3.email,
-    password: 'hashed_password_peter123',
+    password: await hashPassword('john123'),
   });
   await accountRepository.save(account3);
 
@@ -197,7 +212,7 @@ export async function seedBusinessData(dataSource: DataSource): Promise<void> {
     userId: user4.id,
     providerId: 'email',
     providerAccountId: user4.email,
-    password: 'hashed_password_mary123',
+    password: await hashPassword('john123'),
   });
   await accountRepository.save(account4);
 
@@ -241,7 +256,7 @@ export async function seedBusinessData(dataSource: DataSource): Promise<void> {
     userId: user5.id,
     providerId: 'email',
     providerAccountId: user5.email,
-    password: 'hashed_password_david123',
+    password: await hashPassword('john123'),
   });
   await accountRepository.save(account5);
 
