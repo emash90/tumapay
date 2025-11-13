@@ -150,6 +150,8 @@ export class TransactionsService {
       completedAt?: Date;
       failedAt?: Date;
       metadata?: Record<string, any>;
+      retryCount?: number;
+      lastRetryAt?: Date;
     },
   ): Promise<Transaction> {
     const transaction = await this.findById(transactionId);
@@ -176,7 +178,56 @@ export class TransactionsService {
     if (updateData.metadata) {
       transaction.metadata = updateData.metadata;
     }
+    if (updateData.retryCount !== undefined) {
+      transaction.retryCount = updateData.retryCount;
+    }
+    if (updateData.lastRetryAt) {
+      transaction.lastRetryAt = updateData.lastRetryAt;
+    }
 
     return await this.transactionRepository.save(transaction);
+  }
+
+  /**
+   * Find pending transactions for reconciliation
+   * Used by reconciliation services to check transaction statuses
+   */
+  async findPendingTransactions(
+    providerName: string,
+    olderThanMinutes: number,
+  ): Promise<Transaction[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setMinutes(cutoffDate.getMinutes() - olderThanMinutes);
+
+    return await this.transactionRepository.find({
+      where: {
+        providerName,
+        status: TransactionStatus.PENDING,
+      },
+      relations: ['business', 'user'],
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  /**
+   * Find transactions that should be marked as failed due to timeout
+   * Transactions pending for more than specified hours
+   */
+  async findTimedOutTransactions(
+    providerName: string,
+    timeoutHours: number,
+  ): Promise<Transaction[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setHours(cutoffDate.getHours() - timeoutHours);
+
+    return await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .where('transaction.providerName = :providerName', { providerName })
+      .andWhere('transaction.status = :status', { status: TransactionStatus.PENDING })
+      .andWhere('transaction.createdAt < :cutoffDate', { cutoffDate })
+      .leftJoinAndSelect('transaction.business', 'business')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .orderBy('transaction.createdAt', 'ASC')
+      .getMany();
   }
 }
