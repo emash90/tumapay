@@ -22,8 +22,8 @@ import { CreateTransferDto } from './dto/create-transfer.dto';
 import { TransferResponseDto } from './dto/transfer-response.dto';
 import { TransferTimelineDto } from './dto/transfer-timeline.dto';
 import { TransferQueryDto } from './dto/transfer-query.dto';
-import { AuthGuard } from '../auth/guards/auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthGuard } from '../../common/guards/auth.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 /**
  * TransfersController

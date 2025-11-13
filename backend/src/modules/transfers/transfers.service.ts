@@ -21,6 +21,7 @@ import {
   Transaction,
 } from '../../database/entities/transaction.entity';
 import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
+import { WalletCurrency } from '../../database/entities/wallet.entity';
 import { BeneficiaryResponseDto } from '../beneficiaries/dto/beneficiary-response.dto';
 import { TransferTimeline } from '../../database/entities/transfer-timeline.entity';
 
@@ -71,19 +72,20 @@ export class TransfersService {
     const beneficiary = await this.validateBeneficiary(beneficiaryId, businessId);
 
     // STEP 2: Create transaction record
-    const transaction = await this.transactionsService.createTransaction({
+    const transaction = await this.transactionsService.createTransaction(
+      {
+        type: TransactionType.TRANSFER,
+        amount,
+        currency: 'KES',
+        description,
+        metadata: {
+          beneficiaryId,
+          externalReference: reference,
+        },
+      },
       businessId,
       userId,
-      type: TransactionType.TRANSFER,
-      status: TransactionStatus.PENDING,
-      amount,
-      currency: 'KES',
-      metadata: {
-        beneficiaryId,
-        description,
-        externalReference: reference,
-      },
-    });
+    );
 
     await this.transferTimelineService.recordStep(
       transaction.id,
@@ -100,7 +102,7 @@ export class TransfersService {
 
     try {
       // STEP 3: Debit KES wallet (atomic with pessimistic lock)
-      await this.debitWallet(transaction, businessId, userId, amount);
+      await this.debitWallet(transaction, businessId, amount);
 
       // STEP 4: Calculate exchange rates and amounts
       const { usdAmount, usdtAmount, exchangeRate } = await this.calculateAmounts(
@@ -287,7 +289,7 @@ export class TransfersService {
       'success',
       `Beneficiary ${beneficiary.name} validated`,
     );*/
-
+    this.logger.log('beneficiary is', beneficiary)
     return beneficiary;
   }
 
@@ -297,7 +299,6 @@ export class TransfersService {
   private async debitWallet(
     transaction: Transaction,
     businessId: string,
-    userId: string,
     amount: number,
   ) {
     await this.transferTimelineService.recordStep(
@@ -308,7 +309,7 @@ export class TransfersService {
       'Debiting wallet...',
     );
 
-    const wallet = await this.walletService.getOrCreateWallet(businessId, userId, 'KES');
+    const wallet = await this.walletService.getOrCreateWallet(businessId, WalletCurrency.KES);
 
     await this.walletService.debitWallet(
       wallet.id,
@@ -387,7 +388,9 @@ export class TransfersService {
     );
 
     const binanceBalance = await this.binanceService.getUSDTBalance();
-    const availableBalance = typeof binanceBalance === 'number' ? binanceBalance : binanceBalance.free;
+    const availableBalance = typeof binanceBalance === 'number'
+      ? binanceBalance
+      : parseFloat(binanceBalance.free);
 
     if (availableBalance < usdtAmount) {
       throw new BadRequestException(
@@ -446,7 +449,7 @@ export class TransfersService {
     );
 
     // Extract transaction hash from result
-    const tronTxHash = typeof tronResult === 'string' ? tronResult : tronResult.transactionHash;
+    const tronTxHash = typeof tronResult === 'string' ? tronResult : tronResult.txHash;
 
     await this.transferTimelineService.recordStep(
       transactionId,
@@ -575,8 +578,7 @@ export class TransfersService {
   private async creditWalletBack(transaction: Transaction): Promise<void> {
     const wallet = await this.walletService.getOrCreateWallet(
       transaction.businessId,
-      transaction.userId,
-      transaction.currency,
+      transaction.currency as WalletCurrency,
     );
 
     // This is idempotent - won't double-credit due to unique transactionId

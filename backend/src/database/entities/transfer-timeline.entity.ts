@@ -4,7 +4,6 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
-  PrimaryGeneratedColumn,
 } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Transaction } from './transaction.entity';
@@ -18,9 +17,6 @@ import { Transaction } from './transaction.entity';
 @Entity('transfer_timeline')
 @Index(['transactionId', 'createdAt'])
 export class TransferTimeline extends BaseEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
   @Column({ type: 'uuid' })
   @Index()
   transactionId: string;
@@ -40,10 +36,10 @@ export class TransferTimeline extends BaseEntity {
   status: 'success' | 'failed' | 'pending';
 
   @Column({ type: 'text', nullable: true })
-  message: string | null; // Optional descriptive message
+  message?: string; // Optional descriptive message
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any> | null; // Additional context (amounts, rates, txHashes, etc.)
+  metadata?: Record<string, any>; // Additional context (amounts, rates, txHashes, etc.)
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   timestamp: Date;
