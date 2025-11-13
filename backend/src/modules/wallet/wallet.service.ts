@@ -84,6 +84,59 @@ export class WalletService {
     }
 
     return await this.dataSource.transaction(async (manager) => {
+      // IDEMPOTENCY CHECK: Prevent double-crediting
+      if (transactionId) {
+        // Check if this transaction has already been credited
+        const existingWalletTx = await manager.findOne(WalletTransaction, {
+          where: { transactionId },
+        });
+
+        if (existingWalletTx) {
+          this.logger.warn(
+            `⚠️  Idempotency: Transaction ${transactionId} already credited to wallet. Skipping duplicate credit.`,
+          );
+
+          // Return the wallet without making changes
+          const wallet = await manager.findOne(Wallet, {
+            where: { id: walletId },
+          });
+
+          if (!wallet) {
+            throw new NotFoundException('Wallet not found');
+          }
+
+          return wallet;
+        }
+
+        // Verify transaction status before crediting
+        const transaction = await manager.findOne(Transaction, {
+          where: { id: transactionId },
+        });
+
+        if (transaction) {
+          // Only credit if transaction is PENDING or PROCESSING
+          // This prevents crediting already completed transactions
+          if (
+            transaction.status !== 'pending' &&
+            transaction.status !== 'processing'
+          ) {
+            this.logger.warn(
+              `⚠️  Transaction ${transactionId} has status '${transaction.status}'. Skipping credit to prevent duplicate.`,
+            );
+
+            const wallet = await manager.findOne(Wallet, {
+              where: { id: walletId },
+            });
+
+            if (!wallet) {
+              throw new NotFoundException('Wallet not found');
+            }
+
+            return wallet;
+          }
+        }
+      }
+
       // Lock wallet row for update (pessimistic lock)
       const wallet = await manager.findOne(Wallet, {
         where: { id: walletId },
