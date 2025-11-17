@@ -124,6 +124,9 @@ export class TransfersService {
       // STEP 5: Check USDT liquidity on Binance
       await this.checkLiquidity(transaction.id, usdtAmount);
 
+      // STEP 5.5: Ensure TRON wallet has enough USDT (withdraw from Binance if needed)
+      await this.ensureTronLiquidity(transaction.id, usdtAmount);
+
       // STEP 6: Send USDT via TRON
       const tronTxHash = await this.sendViaTron(
         transaction.id,
@@ -410,7 +413,112 @@ export class TransfersService {
       `USDT liquidity confirmed: ${availableBalance} USDT available`,
     );
 
-    this.logger.log(`USDT liquidity confirmed: ${binanceBalance} USDT available`);
+    this.logger.log(`USDT liquidity confirmed: ${availableBalance} USDT available`);
+  }
+
+  /**
+   * Ensure TRON wallet has sufficient USDT (withdraw from Binance if needed)
+   *
+   * This is the KEY step that converts user's KES payment into USDT on TRON.
+   * User paid in KES → TumaPay uses their Binance USDT → Sends to beneficiary
+   */
+  private async ensureTronLiquidity(
+    transactionId: string,
+    requiredUsdtAmount: number,
+  ): Promise<void> {
+    await this.transferTimelineService.recordStep(
+      transactionId,
+      'tron_liquidity_check_started',
+      { requiredAmount: requiredUsdtAmount },
+      'pending',
+      'Checking TRON wallet USDT balance...',
+    );
+
+    // Check current TRON wallet balance
+    const tronBalance = await this.tronService.getUSDTBalance();
+    const currentBalance = typeof tronBalance === 'object' ? tronBalance.balance : tronBalance;
+
+    this.logger.log(
+      `TRON wallet balance: ${currentBalance} USDT, Required: ${requiredUsdtAmount} USDT`,
+    );
+
+    // If TRON wallet has enough USDT, we're good
+    if (currentBalance >= requiredUsdtAmount) {
+      await this.transferTimelineService.recordStep(
+        transactionId,
+        'tron_liquidity_confirmed',
+        {
+          currentBalance,
+          requiredAmount: requiredUsdtAmount,
+          needsRefill: false,
+        },
+        'success',
+        `TRON wallet has sufficient USDT: ${currentBalance} USDT`,
+      );
+
+      this.logger.log(`TRON wallet has sufficient USDT, no Binance withdrawal needed`);
+      return;
+    }
+
+    // TRON wallet needs refill - withdraw from Binance
+    const withdrawAmount = requiredUsdtAmount - currentBalance + 10; // Add 10 USDT buffer
+
+    this.logger.warn(
+      `TRON wallet insufficient! Current: ${currentBalance} USDT, Need: ${requiredUsdtAmount} USDT. Withdrawing ${withdrawAmount} USDT from Binance...`,
+    );
+
+    await this.transferTimelineService.recordStep(
+      transactionId,
+      'binance_withdrawal_started',
+      {
+        currentTronBalance: currentBalance,
+        requiredAmount: requiredUsdtAmount,
+        withdrawAmount,
+      },
+      'pending',
+      `Withdrawing ${withdrawAmount} USDT from Binance to TRON wallet...`,
+    );
+
+    try {
+      // Get TRON wallet address from config
+      const tronAddress = await this.tronService.getHotWalletAddress();
+
+      // Withdraw from Binance to TRON (this is TumaPay's operational flow)
+      await this.binanceService.withdrawUSDTToTron(
+        tronAddress,
+        withdrawAmount,
+        transactionId,
+      );
+
+      await this.transferTimelineService.recordStep(
+        transactionId,
+        'binance_withdrawal_completed',
+        {
+          withdrawAmount,
+          tronAddress,
+        },
+        'success',
+        `Successfully withdrew ${withdrawAmount} USDT from Binance to TRON`,
+      );
+
+      this.logger.log(
+        `✅ Binance withdrawal completed: ${withdrawAmount} USDT sent to TRON wallet`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to withdraw USDT from Binance to TRON: ${error.message}`);
+
+      await this.transferTimelineService.recordStep(
+        transactionId,
+        'binance_withdrawal_failed',
+        { error: error.message },
+        'failed',
+        `Binance withdrawal failed: ${error.message}`,
+      );
+
+      throw new BadRequestException(
+        `Failed to prepare USDT for transfer: ${error.message}`,
+      );
+    }
   }
 
   /**

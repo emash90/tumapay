@@ -4,10 +4,10 @@ import { ConfigModule } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ExchangeRateService } from './exchange-rate.service';
 import { ExchangeRateController } from './exchange-rate.controller';
-import { AuthModule } from '../auth/auth.module';
-import currencyApiConfig from '../../config/currency-api.config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ExchangeRateHistory } from 'src/database/entities/exchange-rate-history.entity';
+import { AuthModule } from '../auth/auth.module';
+import { ExchangeRateHistory } from '../../database/entities/exchange-rate-history.entity';
+import currencyApiConfig from '../../config/currency-api.config';
 
 @Module({
   imports: [

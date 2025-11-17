@@ -60,7 +60,7 @@ export class TransactionsService {
    * Validate recipient information based on transaction type
    */
   private validateRecipientInfo(dto: CreateTransactionDto): void {
-    const { type, recipientPhone, recipientAccount, recipientBankCode } = dto;
+    const { type, recipientPhone, recipientAccount, recipientBankCode, metadata } = dto;
 
     // For payout and collection transactions, require recipient phone (M-Pesa)
     if ((type === 'payout' || type === 'collection') && !recipientPhone) {
@@ -69,11 +69,18 @@ export class TransactionsService {
       );
     }
 
-    // For transfer transactions, require account details
+    // For transfer transactions, validate based on transfer type
     if (type === 'transfer') {
-      if (!recipientAccount || !recipientBankCode) {
+      // Cross-border crypto transfers store beneficiary in metadata
+      const hasBeneficiaryId = metadata && metadata.beneficiaryId;
+
+      // Traditional bank transfers need account details
+      const hasBankDetails = recipientAccount && recipientBankCode;
+
+      // Must have either beneficiary (cross-border) or bank details (traditional)
+      if (!hasBeneficiaryId && !hasBankDetails) {
         throw new BadRequestException(
-          'Recipient account number and bank code are required for transfer transactions',
+          'Transfer requires either beneficiary ID (cross-border) or recipient account details (traditional bank transfer)',
         );
       }
     }

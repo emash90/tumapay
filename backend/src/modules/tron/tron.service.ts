@@ -44,15 +44,30 @@ export class TronService {
         timeout: 30000, // 30 seconds
       });
 
+      const isTestnet = this.isTestnet();
       this.logger.log(
-        `TronWeb initialized for network: ${this.config.network}`,
+        `TronWeb initialized for network: ${this.config.network} ${isTestnet ? '(TESTNET)' : '(MAINNET)'}`,
       );
       this.logger.log(`Connected to: ${this.config.apiUrl}`);
       this.logger.log(`Wallet address: ${this.config.walletAddress}`);
+
+      if (isTestnet) {
+        this.logger.warn(
+          `🧪 TESTNET MODE: TRON operations will be mocked for development`,
+        );
+      }
     } catch (error) {
       this.logger.error('Failed to initialize TronWeb', error.stack);
       throw error;
     }
+  }
+
+  /**
+   * Check if we're on a testnet (Shasta or Nile)
+   */
+  private isTestnet(): boolean {
+    const network = this.config.network?.toLowerCase();
+    return network === 'shasta' || network === 'nile' || network === 'testnet';
   }
 
   /**
@@ -213,6 +228,20 @@ export class TronService {
         throw new BadRequestException('Wallet address not configured');
       }
 
+      // TESTNET MODE: Mock the balance
+      if (this.isTestnet()) {
+        const mockBalance = 100000; // Mock 100k USDT for testing
+        this.logger.warn(
+          `🧪 TESTNET: Mocking USDT balance for ${walletAddress}: ${mockBalance} USDT`,
+        );
+        return {
+          address: walletAddress,
+          balance: mockBalance,
+          decimals: this.USDT_DECIMALS,
+          lastChecked: new Date(),
+        };
+      }
+
       if (!this.validateAddress(walletAddress)) {
         throw new BadRequestException(`Invalid address: ${walletAddress}`);
       }
@@ -242,6 +271,17 @@ export class TronService {
         `Failed to fetch USDT balance: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * Get the hot wallet address (TumaPay's TRON wallet for operations)
+   * This is the wallet that holds USDT for sending to beneficiaries
+   */
+  async getHotWalletAddress(): Promise<string> {
+    if (!this.config.walletAddress) {
+      throw new BadRequestException('TRON hot wallet address not configured');
+    }
+    return this.config.walletAddress;
   }
 
   // ========================================
@@ -282,6 +322,31 @@ export class TronService {
         );
       }
 
+      // TESTNET MODE: Mock the transfer
+      if (this.isTestnet()) {
+        const mockTxHash = `TESTNET_MOCK_TX_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const executionTime = Date.now() - startTime;
+
+        this.logger.warn(
+          `🧪 TESTNET: Mocking USDT transfer of ${amount} USDT to ${toAddress}`,
+        );
+        this.logger.warn(
+          `🧪 In production, this would send real USDT on TRON mainnet`,
+        );
+        this.logger.log(
+          `✅ TESTNET: Mocked transaction hash: ${mockTxHash}, Time: ${executionTime}ms`,
+        );
+
+        return {
+          txHash: mockTxHash,
+          success: true,
+          amount,
+          toAddress,
+          timestamp: new Date(),
+        };
+      }
+
+      // PRODUCTION MODE: Real TRON transfer
       // Check TRX balance for gas fees
       const trxBalance = await this.getTRXBalance();
       if (trxBalance < 20) {
@@ -374,6 +439,22 @@ export class TronService {
       }
 
       this.logger.debug(`Checking status for transaction: ${txHash}`);
+
+      // TESTNET MODE: Mock transaction status for test transactions
+      if (txHash.startsWith('TESTNET_MOCK_TX_')) {
+        this.logger.warn(
+          `🧪 TESTNET: Mocking transaction status for ${txHash} (always returns confirmed)`,
+        );
+        return {
+          found: true,
+          confirmed: true,
+          confirmations: 20, // Mock as having many confirmations
+          blockNumber: Date.now(), // Use timestamp as mock block number
+          success: true,
+          energyUsed: 0,
+          timestamp: Date.now(),
+        };
+      }
 
       // Get transaction info
       const txInfo = await this.tronWeb.trx.getTransactionInfo(txHash);

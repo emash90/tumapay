@@ -369,8 +369,22 @@ export class MpesaService {
 
       return response.data;
     } catch (error: any) {
-      this.logger.error('STK Push query failed', error.response?.data || error.message);
-      throw new BadRequestException('Failed to query transaction status');
+      const mpesaError = error.response?.data;
+      this.logger.error(
+        `STK Push query failed for CheckoutRequestID: ${checkoutRequestId}`,
+        {
+          mpesaError: JSON.stringify(mpesaError),
+          statusCode: error.response?.status,
+          message: error.message,
+        },
+      );
+
+      // Return the M-Pesa error details for better debugging
+      throw new BadRequestException({
+        message: 'Failed to query transaction status',
+        checkoutRequestId,
+        mpesaError: mpesaError || error.message,
+      });
     }
   }
 }

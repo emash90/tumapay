@@ -84,16 +84,20 @@ export class WalletService {
     }
 
     return await this.dataSource.transaction(async (manager) => {
-      // IDEMPOTENCY CHECK: Prevent double-crediting
+      // IDEMPOTENCY CHECK: Prevent double-crediting of same type
       if (transactionId) {
-        // Check if this transaction has already been credited
+        // Check if this EXACT transaction type has already been credited
+        // Important: DEPOSIT and REVERSAL for same transactionId should BOTH be allowed
         const existingWalletTx = await manager.findOne(WalletTransaction, {
-          where: { transactionId },
+          where: {
+            transactionId,
+            type  // Only prevent duplicate if same type (e.g., duplicate DEPOSIT)
+          },
         });
 
         if (existingWalletTx) {
           this.logger.warn(
-            `⚠️  Idempotency: Transaction ${transactionId} already credited to wallet. Skipping duplicate credit.`,
+            `⚠️  Idempotency: Transaction ${transactionId} with type ${type} already credited to wallet. Skipping duplicate credit.`,
           );
 
           // Return the wallet without making changes

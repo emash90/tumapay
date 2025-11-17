@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { MpesaService } from '../mpesa.service';
 import { TransactionsService } from '../../transactions/transactions.service';
 import { WalletService } from '../../wallet/wallet.service';
@@ -41,9 +41,13 @@ export class MpesaReconciliationService {
   private readonly logger = new Logger(MpesaReconciliationService.name);
 
   // Configuration
-  private readonly MIN_AGE_MINUTES = 3; // Wait 3 minutes before reconciling
+  private readonly MIN_AGE_MINUTES = 0.5; // Wait 30 seconds before reconciling (reduced from 3 min)
   private readonly TIMEOUT_HOURS = 12; // Auto-fail after 12 hours
   private readonly MAX_RETRIES = 3; // Max API query attempts per transaction
+
+  // M-Pesa Rate Limiting: 5 requests per 60 seconds
+  private readonly MPESA_RATE_LIMIT = 5; // Max 5 requests per minute
+  private readonly RATE_LIMIT_DELAY_MS = 12000; // 12 seconds between queries (5 per 60s)
 
   constructor(
     private readonly mpesaService: MpesaService,
@@ -53,9 +57,9 @@ export class MpesaReconciliationService {
 
   /**
    * Reconcile pending M-Pesa transactions
-   * Runs every 10 minutes
+   * Runs every 2 minutes (reduced from 10 minutes for faster confirmation)
    */
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Cron('*/2 * * * *') // Every 2 minutes
   async reconcilePendingTransactions() {
     try {
       this.logger.log('🔄 Starting M-Pesa transaction reconciliation...');
@@ -140,8 +144,12 @@ export class MpesaReconciliationService {
       let successCount = 0;
       let failedCount = 0;
       let errorCount = 0;
+      let rateLimitCount = 0;
 
-      for (const transaction of pendingTransactions) {
+      // Process transactions one by one with rate limiting
+      for (let i = 0; i < pendingTransactions.length; i++) {
+        const transaction = pendingTransactions[i];
+
         try {
           // Skip if no providerTransactionId (CheckoutRequestID)
           if (!transaction.providerTransactionId) {
@@ -178,14 +186,37 @@ export class MpesaReconciliationService {
               retryCount: transaction.retryCount,
             });
           }
+
+          // Add delay between queries to respect M-Pesa rate limit (5 per minute)
+          // Only delay if there are more transactions to process
+          if (i < pendingTransactions.length - 1) {
+            this.logger.debug(
+              `⏳ Waiting ${this.RATE_LIMIT_DELAY_MS / 1000}s before next query (rate limit: ${this.MPESA_RATE_LIMIT}/min)`,
+            );
+            await this.sleep(this.RATE_LIMIT_DELAY_MS);
+          }
         } catch (error) {
+          // Check if it's a rate limit error
+          const isRateLimitError = error?.response?.mpesaError?.fault?.detail?.errorcode ===
+            'policies.ratelimit.SpikeArrestViolation';
+
+          if (isRateLimitError) {
+            this.logger.warn(
+              `⚠️  Rate limit hit for transaction ${transaction.reference} - will retry in next cycle`,
+            );
+            rateLimitCount++;
+            // Don't increment retry count for rate limit errors
+            // They should be retried in the next reconciliation cycle
+            continue;
+          }
+
           this.logger.error(
             `Error reconciling transaction ${transaction.reference}`,
             error,
           );
           errorCount++;
 
-          // Increment retry count on error
+          // Increment retry count on error (but not for rate limits)
           transaction.retryCount = (transaction.retryCount || 0) + 1;
           await this.transactionsService.updateTransactionStatus(transaction.id, {
             retryCount: transaction.retryCount,
@@ -195,7 +226,7 @@ export class MpesaReconciliationService {
       }
 
       this.logger.log(
-        `Reconciliation results: ${successCount} completed, ${failedCount} failed, ${errorCount} errors`,
+        `Reconciliation results: ${successCount} completed, ${failedCount} failed, ${errorCount} errors, ${rateLimitCount} rate-limited`,
       );
     } catch (error) {
       this.logger.error('Error during transaction reconciliation', error);
@@ -385,5 +416,13 @@ export class MpesaReconciliationService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Helper method to sleep/delay execution
+   * Used for rate limiting between M-Pesa API calls
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

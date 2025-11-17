@@ -377,6 +377,109 @@ export class BinanceService {
   }
 
   /**
+   * Withdraw USDT from Binance directly to TRON address
+   * This is for operational transfers (TumaPay using their own liquidity)
+   * Does NOT debit any internal wallet - KES was already debited in transfer flow
+   */
+  async withdrawUSDTToTron(
+    tronAddress: string,
+    amount: number,
+    referenceId?: string,
+  ): Promise<any> {
+    try {
+      const isTestnet = this.configService.get<boolean>('BINANCE_TESTNET', false);
+
+      this.logger.log(
+        `[Operational] Withdrawing ${amount} USDT from Binance ${isTestnet ? '(TESTNET - MOCKED)' : ''} to TRON address ${tronAddress}`,
+      );
+
+      // Validate sufficient Binance balance
+      const balance = await this.getUSDTBalance();
+      const availableBalance = parseFloat(balance.free);
+
+      if (availableBalance < amount) {
+        throw new HttpException(
+          `Insufficient Binance USDT balance. Available: ${availableBalance}, Required: ${amount}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      let withdrawal: any;
+
+      // TESTNET MODE: Mock the withdrawal (testnet doesn't support real withdrawals)
+      if (isTestnet) {
+        this.logger.warn(
+          `🧪 TESTNET MODE: Mocking Binance withdrawal of ${amount} USDT to ${tronAddress}`,
+        );
+        this.logger.warn(
+          `🧪 In production, this would withdraw ${amount} USDT from Binance to TRON hot wallet`,
+        );
+
+        // Create mock withdrawal response
+        withdrawal = {
+          id: `TESTNET_MOCK_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          msg: 'TESTNET: Withdrawal mocked successfully',
+          success: true,
+          amount: amount.toString(),
+          asset: 'USDT',
+          address: tronAddress,
+          network: 'TRX',
+          testnetMock: true,
+        };
+
+        this.logger.log(
+          `✅ TESTNET: Mocked withdrawal ID: ${withdrawal.id}`,
+        );
+      }
+      // PRODUCTION MODE: Real withdrawal
+      else {
+        this.logger.log(
+          `💰 PRODUCTION: Initiating real Binance withdrawal...`,
+        );
+
+        // Initiate withdrawal with Binance
+        withdrawal = await this.client.withdraw({
+          asset: 'USDT',
+          address: tronAddress,
+          amount: amount.toString(),
+          network: 'TRX', // TRON network (TRC20)
+          name: `TumaPay Hot Wallet ${referenceId || ''}`,
+        });
+
+        this.logger.log(
+          `✅ Binance withdrawal initiated: ${amount} USDT to ${tronAddress}, Withdrawal ID: ${withdrawal.id}`,
+        );
+      }
+
+      // Save withdrawal record (optional - for tracking)
+      if (referenceId) {
+        await this.binanceWithdrawalRepository.save({
+          binanceWithdrawalId: withdrawal.id,
+          asset: 'USDT',
+          amount,
+          address: tronAddress,
+          network: 'TRX',
+          status: BinanceWithdrawalStatus.PROCESSING,
+          metadata: {
+            operationalWithdrawal: true,
+            referenceId,
+            withdrawnAt: new Date().toISOString(),
+            testnetMock: isTestnet,
+          },
+        });
+      }
+
+      return withdrawal;
+    } catch (error) {
+      this.logger.error(`Failed to withdraw USDT to TRON: ${error.message}`);
+      throw new HttpException(
+        `Binance withdrawal failed: ${error.message}`,
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  /**
    * Map Binance status code to BinanceWithdrawalStatus enum
    * @param status Status from Binance API (could be number or string)
    * @returns BinanceWithdrawalStatus enum value
