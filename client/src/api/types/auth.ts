@@ -63,9 +63,22 @@ export interface SignUpRequest {
   firstName: string;
   lastName: string;
   phoneNumber?: string;
-  businessName: string;
-  businessType: string;
-  country: string;
+  business: {
+    businessName: string;
+    registrationNumber: string;
+    kraPin?: string;
+    country: string;
+    industry: string;
+    businessEmail: string;
+    businessPhone: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    taxId?: string;
+    description?: string;
+    website?: string;
+  };
 }
 
 // Sign in request

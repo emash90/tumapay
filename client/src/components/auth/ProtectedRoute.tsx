@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
+import { useRefreshToken } from '@/hooks/useAuth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,21 +13,20 @@ interface ProtectedRouteProps {
  * Redirects to login if user is not authenticated
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, refreshToken } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
+  const { mutate: refreshToken, isPending } = useRefreshToken();
   const location = useLocation();
 
   // Try to refresh token on mount only (not on state changes)
   useEffect(() => {
-    if (!isAuthenticated && !isLoading) {
-      refreshToken().catch(() => {
-        // If refresh fails, user will be redirected to login
-      });
+    if (!isAuthenticated) {
+      refreshToken();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps = run only on mount
 
   // Show loading state while checking authentication
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-primary-900 via-primary-700 to-secondary-700">
         <div className="text-center">

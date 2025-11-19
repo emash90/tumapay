@@ -1,18 +1,15 @@
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
+import { useSignOut } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const { user, business, signOut, isLoading } = useAuthStore();
+  const { user, business } = useAuthStore();
+  const { mutate: signOut, isPending } = useSignOut();
 
-  const handleSignOut = async () => {
-    // Sign out clears tokens immediately
-    await signOut();
-    // Redirect to login
-    navigate('/auth/login');
+  const handleSignOut = () => {
+    signOut();
   };
 
   return (
@@ -28,7 +25,7 @@ export default function Dashboard() {
               {business?.name || 'Your Business'}
             </p>
           </div>
-          <Button variant="outline" onClick={handleSignOut} isLoading={isLoading}>
+          <Button variant="outline" onClick={handleSignOut} isLoading={isPending}>
             Sign Out
           </Button>
         </div>
