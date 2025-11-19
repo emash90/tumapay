@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { User } from '../../database/entities/user.entity';
 import { Account } from '../../database/entities/account.entity';
@@ -14,6 +16,7 @@ import { Verification, VerificationType } from '../../database/entities/verifica
 import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto } from './dto';
 import { SessionService } from './session.service';
 import { BusinessService } from '../business/business.service';
+import type { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +29,8 @@ export class AuthService {
     @InjectRepository(Verification)
     private verificationRepository: Repository<Verification>,
     private businessService: BusinessService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -135,12 +140,26 @@ export class AuthService {
     //   throw new UnauthorizedException('Please verify your email before signing in');
     // }
 
-    // Create session using SessionService
+    // Create session using SessionService (for backwards compatibility and tracking)
     const session = await this.sessionService.createSession(
       user.id,
       ipAddress,
       userAgent,
     );
+
+    // Generate JWT tokens
+    const accessToken = await this.generateAccessToken(user, session.id);
+    const refreshToken = await this.generateRefreshToken(user, session.id);
+
+    // Calculate refresh token expiry
+    const refreshExpiresIn = this.configService.get<string>('jwt.refreshToken.expiresIn') || '30d';
+    const expiresInMs = this.parseExpiration(refreshExpiresIn);
+    const refreshTokenExpiresAt = new Date(Date.now() + expiresInMs);
+
+    // Store refresh token in account entity
+    account.refreshToken = refreshToken;
+    account.refreshTokenExpiresAt = refreshTokenExpiresAt;
+    await this.accountRepository.save(account);
 
     // Update last login
     user.lastLoginAt = new Date();
@@ -155,6 +174,8 @@ export class AuthService {
       success: true,
       message: 'Signed in successfully',
       data: {
+        accessToken,
+        refreshToken,
         user: this.sanitizeUser(updatedUser),
         business: business ? {
           id: business.id,
@@ -166,8 +187,9 @@ export class AuthService {
           dailyLimit: business.dailyLimit,
           monthlyLimit: business.monthlyLimit,
         } : null,
+        // Keep session data for backwards compatibility
         session: {
-          token: session.token,
+          id: session.id,
           expiresAt: session.expiresAt,
         },
       },
@@ -404,5 +426,141 @@ export class AuthService {
       ...sanitized
     } = user;
     return sanitized;
+  }
+
+  /**
+   * Generate JWT access token (short-lived, 30 minutes)
+   */
+  async generateAccessToken(user: User, sessionId?: string): Promise<string> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      sessionId,
+    };
+
+    return this.jwtService.sign(payload);
+  }
+
+  /**
+   * Generate JWT refresh token (long-lived, 30 days)
+   */
+  async generateRefreshToken(user: User, sessionId?: string): Promise<string> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      sessionId,
+    };
+
+    const refreshSecret = this.configService.get<string>('jwt.refreshToken.secret') || 'default-refresh-secret';
+    const refreshExpiresIn = this.configService.get<string>('jwt.refreshToken.expiresIn') || '30d';
+
+    return this.jwtService.sign(payload, {
+      secret: refreshSecret,
+      expiresIn: refreshExpiresIn as any,
+    });
+  }
+
+  /**
+   * Verify and decode refresh token
+   */
+  async verifyRefreshToken(token: string): Promise<JwtPayload> {
+    try {
+      const refreshSecret = this.configService.get<string>('jwt.refreshToken.secret') || 'default-refresh-secret';
+      return this.jwtService.verify<JwtPayload>(token, { secret: refreshSecret });
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshTokens(refreshToken: string) {
+    // Verify refresh token
+    const payload = await this.verifyRefreshToken(refreshToken);
+
+    // Find user and account
+    const user = await this.userRepository.findOne({
+      where: { id: payload.sub },
+      relations: ['business'],
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    const account = await this.accountRepository.findOne({
+      where: { userId: user.id, providerId: 'email' },
+    });
+
+    if (!account) {
+      throw new UnauthorizedException('Account not found');
+    }
+
+    // Verify that the refresh token matches the stored one
+    if (account.refreshToken !== refreshToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Check if refresh token has expired
+    if (account.refreshTokenExpiresAt && new Date() > account.refreshTokenExpiresAt) {
+      throw new UnauthorizedException('Refresh token has expired');
+    }
+
+    // Generate new tokens
+    const newAccessToken = await this.generateAccessToken(user, payload.sessionId);
+    const newRefreshToken = await this.generateRefreshToken(user, payload.sessionId);
+
+    // Calculate new expiry
+    const refreshExpiresIn = this.configService.get<string>('jwt.refreshToken.expiresIn') || '30d';
+    const expiresInMs = this.parseExpiration(refreshExpiresIn);
+    const newRefreshTokenExpiresAt = new Date(Date.now() + expiresInMs);
+
+    // Update refresh token in database (token rotation)
+    account.refreshToken = newRefreshToken;
+    account.refreshTokenExpiresAt = newRefreshTokenExpiresAt;
+    await this.accountRepository.save(account);
+
+    // Fetch business
+    const business = await this.businessService.getBusinessByUserId(user.id);
+
+    return {
+      success: true,
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        user: this.sanitizeUser(user),
+        business: business ? {
+          id: business.id,
+          businessName: business.businessName,
+          registrationNumber: business.registrationNumber,
+          country: business.country,
+          kybStatus: business.kybStatus,
+          tier: business.tier,
+          dailyLimit: business.dailyLimit,
+          monthlyLimit: business.monthlyLimit,
+        } : null,
+      },
+    };
+  }
+
+  /**
+   * Parse expiration string (e.g., '30m', '7d') to milliseconds
+   */
+  private parseExpiration(expiration: string): number {
+    const units: { [key: string]: number } = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+
+    const match = expiration.match(/^(\d+)([smhd])$/);
+    if (!match) {
+      throw new Error(`Invalid expiration format: ${expiration}`);
+    }
+
+    const [, value, unit] = match;
+    return parseInt(value, 10) * units[unit];
   }
 }
