@@ -1,0 +1,121 @@
+/**
+ * API Types Index
+ * Central export for all API type definitions
+ */
+
+// Common types
+export type {
+  Currency,
+  TransactionStatus,
+  TransactionType,
+  TransactionDirection,
+  PaymentProvider,
+  PaymentMethod,
+  BaseEntity,
+  PaginationParams,
+  PaginatedResponse,
+  DateRangeFilter,
+  StatusFilter,
+} from './common';
+
+// Authentication types
+export type {
+  User,
+  Business,
+  BusinessVerificationStatus,
+  Session,
+  SignUpRequest,
+  SignInRequest,
+  VerifyEmailRequest,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+  SignUpResponse,
+  SignInResponse,
+  SessionResponse,
+  UserProfileResponse,
+  SessionsListResponse,
+  RevokeSessionResponse,
+  SignOutResponse,
+  VerifyEmailResponse,
+  ForgotPasswordResponse,
+  ResetPasswordResponse,
+} from './auth';
+
+// Business types
+export type {
+  UpdateBusinessRequest,
+  BusinessResponse,
+  BusinessVerificationResponse,
+  DeleteBusinessResponse,
+} from './business';
+
+// Beneficiaries types
+export type {
+  Beneficiary,
+  CreateBeneficiaryRequest,
+  UpdateBeneficiaryRequest,
+  BeneficiaryResponse,
+  BeneficiariesListResponse,
+  BeneficiaryStatsResponse,
+  BeneficiaryActionResponse,
+} from './beneficiaries';
+
+// Wallets types
+export type {
+  Wallet,
+  WalletTransaction,
+  PaymentProviderInfo,
+  WithdrawalLimits,
+  WalletBalanceParams,
+  WalletHistoryParams,
+  WalletCreditDebitRequest,
+  WalletLockUnlockRequest,
+  MpesaDepositRequest,
+  BankTransferDepositRequest,
+  MpesaWithdrawalRequest,
+  BankTransferWithdrawalRequest,
+  UsdtWithdrawalRequest,
+  WalletResponse,
+  WalletsListResponse,
+  WalletBalanceResponse,
+  PaymentProvidersResponse,
+  WithdrawalLimitsResponse,
+  WalletHistoryResponse,
+  WalletTransactionResponse,
+  MpesaDepositResponse,
+  BankDepositResponse,
+  WithdrawalResponse,
+} from './wallets';
+
+// Transfers types
+export type {
+  TransferStatus,
+  Transfer,
+  TransferTimelineEvent,
+  InitiateTransferRequest,
+  TransferListParams,
+  TransferQuoteResponse,
+  TransferResponse,
+  TransferStatusResponse,
+  TransferTimelineResponse,
+  TransfersListResponse,
+} from './transfers';
+
+// Exchange rates types
+export type {
+  ExchangeRate,
+  GetExchangeRateParams,
+  ExchangeRateResponse,
+  AllExchangeRatesResponse,
+} from './exchange-rates';
+
+// Conversion types
+export type {
+  Conversion,
+  ConversionQuoteRequest,
+  ExecuteConversionRequest,
+  ConversionHistoryParams,
+  ConversionQuoteResponse,
+  ExecuteConversionResponse,
+  ConversionHistoryResponse,
+} from './conversion';
