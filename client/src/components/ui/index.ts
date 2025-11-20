@@ -18,3 +18,5 @@ export { Alert, AlertTitle, AlertDescription } from './alert';
 export type { AlertProps } from './alert';
 
 export { Skeleton, CardSkeleton, TableSkeleton, ChartSkeleton } from './skeleton';
+
+export { Modal } from './modal';

@@ -75,15 +75,15 @@ export type {
   MpesaWithdrawalRequest,
   BankTransferWithdrawalRequest,
   UsdtWithdrawalRequest,
+  ApiResponse,
   WalletResponse,
   WalletsListResponse,
   WalletBalanceResponse,
   PaymentProvidersResponse,
   WithdrawalLimitsResponse,
   WalletHistoryResponse,
-  WalletTransactionResponse,
-  MpesaDepositResponse,
-  BankDepositResponse,
+  TransactionData,
+  DepositResponse,
   WithdrawalResponse,
 } from './wallets';
 

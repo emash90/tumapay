@@ -6,60 +6,64 @@
 import type {
   BaseEntity,
   Currency,
-  TransactionStatus,
-  TransactionType,
-  TransactionDirection,
-  PaymentProvider,
   PaginationParams,
+  TransactionType,
+  TransactionStatus,
 } from './common';
 
 // Wallet entity
 export interface Wallet extends BaseEntity {
   businessId: string;
   currency: Currency;
-  balance: string; // Decimal as string for precision
-  lockedBalance: string; // Funds locked for pending transactions
-  availableBalance: string; // balance - lockedBalance
+  availableBalance: number;
+  pendingBalance: number;
+  totalBalance: number;
+  lastTransactionAt: string | null;
   isActive: boolean;
 }
 
 // Wallet transaction entity
 export interface WalletTransaction extends BaseEntity {
   walletId: string;
-  businessId: string;
-  type: TransactionType;
-  direction: TransactionDirection;
-  amount: string; // Decimal as string
-  balanceBefore: string;
-  balanceAfter: string;
-  currency: Currency;
-  status: TransactionStatus;
-  description?: string;
-  referenceId?: string;
-  metadata?: Record<string, unknown>;
+  type: 'deposit' | 'withdrawal' | 'conversion_debit' | 'conversion_credit' | 'fee' | 'reversal';
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  transactionId: string | null;
+  metadata: Record<string, unknown> | null;
+  conversionId: string | null;
+  exchangeRate: number | null;
 }
 
 // Payment provider info
 export interface PaymentProviderInfo {
-  provider: PaymentProvider;
-  name: string;
-  currencies: Currency[];
-  minAmount: string;
-  maxAmount: string;
-  isActive: boolean;
-  depositEnabled: boolean;
-  withdrawalEnabled: boolean;
+  paymentMethod: string;
+  displayName: string;
+  features: string[];
+  estimatedTime: number | string;
 }
 
 // Withdrawal limits
 export interface WithdrawalLimits {
-  currency: Currency;
-  dailyLimit: string;
-  monthlyLimit: string;
-  perTransactionMin: string;
-  perTransactionMax: string;
-  remainingDailyLimit: string;
-  remainingMonthlyLimit: string;
+  tier: 'basic' | 'premium' | 'enterprise';
+  limits: {
+    minimumAmount: number;
+    maximumPerTransaction: number;
+    dailyLimit: number;
+    monthlyLimit: number;
+    maxPendingWithdrawals: number;
+    businessHours: {
+      start: number;
+      end: number;
+    };
+  };
+  usage: {
+    dailyTotal: number;
+    dailyRemaining: number;
+    monthlyTotal: number;
+    monthlyRemaining: number;
+    pendingWithdrawals: number;
+  };
 }
 
 // ==================== Request Types ====================
@@ -94,40 +98,53 @@ export interface WalletLockUnlockRequest {
 
 // M-Pesa deposit request (STK Push)
 export interface MpesaDepositRequest {
-  phoneNumber: string; // Format: 2547XXXXXXXX
-  amount: string;
-  currency: Currency;
+  phoneNumber: string; // Format: 254XXXXXXXXX
+  amount: number;
+  description?: string;
 }
 
 // Bank transfer deposit request
 export interface BankTransferDepositRequest {
-  amount: string;
-  currency: Currency;
-  referenceNumber?: string;
+  amount: number;
+  accountNumber: string;
+  accountHolderName: string;
+  bankName: string;
+  bankBranch?: string;
+  description?: string;
 }
 
 // M-Pesa withdrawal request (B2C)
 export interface MpesaWithdrawalRequest {
-  phoneNumber: string; // Format: 2547XXXXXXXX
-  amount: string;
+  phoneNumber: string; // Format: 254XXXXXXXXX
+  amount: number;
+  description?: string;
 }
 
 // Bank transfer withdrawal request
 export interface BankTransferWithdrawalRequest {
-  amount: string;
+  amount: number;
   accountNumber: string;
-  accountName: string;
-  bankCode: string;
+  accountHolderName: string;
   bankName: string;
+  bankBranch?: string;
+  description?: string;
 }
 
 // USDT withdrawal request (TRON network)
 export interface UsdtWithdrawalRequest {
-  amount: string;
+  amount: number;
   tronAddress: string; // TRON wallet address (starts with T)
+  description?: string;
 }
 
 // ==================== Response Types ====================
+
+// API Response wrapper
+export interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
 
 // Wallet response
 export interface WalletResponse {
@@ -141,69 +158,68 @@ export interface WalletsListResponse {
 
 // Wallet balance response
 export interface WalletBalanceResponse {
-  wallet: Wallet;
+  businessId: string;
   currency: Currency;
-  balance: string;
-  lockedBalance: string;
-  availableBalance: string;
+  availableBalance: number;
 }
 
 // Payment providers response
 export interface PaymentProvidersResponse {
+  currency: string;
+  transactionType: string;
   providers: PaymentProviderInfo[];
 }
 
 // Withdrawal limits response
-export interface WithdrawalLimitsResponse {
-  limits: WithdrawalLimits[];
-}
+export interface WithdrawalLimitsResponse extends WithdrawalLimits {}
 
 // Wallet history response
 export interface WalletHistoryResponse {
-  transactions: WalletTransaction[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+  wallet: {
+    id: string;
+    currency: Currency;
+    availableBalance: number;
   };
+  history: WalletTransaction[];
 }
 
-// Wallet transaction response
-export interface WalletTransactionResponse {
-  transaction: WalletTransaction;
-  wallet: Wallet;
-}
-
-// M-Pesa deposit response (STK Push initiated)
-export interface MpesaDepositResponse {
-  checkoutRequestId: string;
-  merchantRequestId: string;
-  responseCode: string;
-  responseDescription: string;
-  customerMessage: string;
-  status: 'pending';
-}
-
-// Bank deposit response
-export interface BankDepositResponse {
-  referenceNumber: string;
-  accountNumber: string;
-  accountName: string;
-  bankName: string;
-  amount: string;
+// Transaction in deposit/withdrawal response
+export interface TransactionData {
+  id: string;
+  reference: string;
+  amount: number;
+  status: string;
   currency: Currency;
+  walletId: string;
+}
+
+// Deposit response
+export interface DepositResponse {
+  transaction: TransactionData;
+  providerTransactionId: string;
   instructions: string;
-  expiresAt: string;
+  bankDetails?: {
+    accountNumber: string;
+    accountHolderName: string;
+    bankName: string;
+    bankBranch?: string;
+  };
 }
 
 // Withdrawal response
 export interface WithdrawalResponse {
-  transactionId: string;
-  status: TransactionStatus;
-  amount: string;
-  currency: Currency;
-  provider: PaymentProvider;
-  referenceNumber?: string;
-  estimatedCompletionTime?: string;
+  transaction: TransactionData;
+  providerTransactionId: string;
+  estimatedTime: string;
+  instructions: string;
+  txHash?: string;
+  toAddress?: string;
+  network?: string;
+  explorerUrl?: string;
+  bankDetails?: {
+    accountNumber: string;
+    accountHolderName: string;
+    bankName: string;
+    bankBranch?: string;
+  };
 }

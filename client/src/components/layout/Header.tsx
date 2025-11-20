@@ -176,7 +176,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <button
                   onClick={() => {
                     setIsUserMenuOpen(false);
-                    navigate('/dashboard/profile');
+                    navigate('/profile');
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
@@ -186,7 +186,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <button
                   onClick={() => {
                     setIsUserMenuOpen(false);
-                    navigate('/dashboard/settings');
+                    navigate('/settings');
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >

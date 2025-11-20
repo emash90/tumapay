@@ -29,16 +29,16 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Wallets', href: '/dashboard/wallets', icon: Wallet },
-  { name: 'Transfers', href: '/dashboard/transfers', icon: ArrowLeftRight },
-  { name: 'Beneficiaries', href: '/dashboard/beneficiaries', icon: Users },
-  { name: 'Exchange Rates', href: '/dashboard/exchange-rates', icon: TrendingUp },
-  { name: 'Transaction History', href: '/dashboard/history', icon: History },
+  { name: 'Wallets', href: '/wallets', icon: Wallet },
+  { name: 'Transfers', href: '/transfers', icon: ArrowLeftRight },
+  { name: 'Beneficiaries', href: '/beneficiaries', icon: Users },
+  { name: 'Exchange Rates', href: '/exchange-rates', icon: TrendingUp },
+  { name: 'Transaction History', href: '/history', icon: History },
 ];
 
 const secondaryNavItems: NavItem[] = [
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-  { name: 'Help & Support', href: '/dashboard/support', icon: HelpCircle },
+  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Help & Support', href: '/support', icon: HelpCircle },
 ];
 
 export function Sidebar({ isCollapsed, onCollapse, isMobileOpen, onMobileClose }: SidebarProps) {
