@@ -3,7 +3,7 @@
  * Types for cross-border transfers (KES → Turkey via USDT)
  */
 
-import type { BaseEntity, Currency, TransactionStatus, PaginationParams } from './common';
+import type { BaseEntity, Currency, PaginationParams } from './common';
 import type { Beneficiary } from './beneficiaries';
 
 // Transfer status (more detailed than TransactionStatus)

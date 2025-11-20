@@ -55,7 +55,7 @@ export default function ResetPassword() {
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-900 via-primary-700 to-secondary-700 px-4 py-12">
         <div className="w-full max-w-md">
           <div className="rounded-2xl bg-white p-8 shadow-2xl">
-            <Alert variant="error">
+            <Alert variant="destructive">
               Invalid or missing reset token. Please request a new password reset link.
             </Alert>
             <div className="mt-6 text-center">
@@ -86,7 +86,7 @@ export default function ResetPassword() {
           <h2 className="mb-6 text-2xl font-semibold text-gray-900">Reset Password</h2>
 
           {error && (
-            <Alert variant="error" className="mb-4">
+            <Alert variant="destructive" className="mb-4">
               {error instanceof Error ? error.message : 'Failed to reset password'}
             </Alert>
           )}

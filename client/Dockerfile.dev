@@ -1,0 +1,19 @@
+# Development Dockerfile for React + Vite application
+# This provides hot-reload capabilities for development
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install only once
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
+
+# Copy source code
+COPY . .
+
+EXPOSE 5173
+
+# Vite dev server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+
