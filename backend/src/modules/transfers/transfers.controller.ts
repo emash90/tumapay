@@ -34,7 +34,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
  * Business isolation enforced - users can only access their own business's transfers
  */
 @ApiTags('Transfers')
-@ApiBearerAuth()
+@ApiBearerAuth('bearer')
 @UseGuards(AuthGuard)
 @Controller('transfers')
 export class TransfersController {

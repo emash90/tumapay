@@ -41,19 +41,43 @@ async function bootstrap() {
     .setTitle('TumaPay API')
     .setDescription('Cross-Border B2B Payment Remittance System - API Documentation')
     .setVersion('1.0')
+    // Authentication & User Management
     .addTag('auth', 'Authentication endpoints')
-    .addTag('users', 'User management')
+    .addTag('sessions', 'Session management')
+    .addTag('business', 'Business management')
+    // Financial Operations
+    .addTag('wallets', 'Wallet management')
+    .addTag('transactions', 'Transaction management')
+    .addTag('Transfers', 'Transfer operations')
+    .addTag('Beneficiaries', 'Beneficiary management')
+    // Currency & Exchange
+    .addTag('Exchange Rates', 'Exchange rate information')
+    .addTag('Conversion', 'Currency conversion')
+    .addTag('Conversion Admin', 'Conversion administration')
+    // Payment Integrations
+    .addTag('payment-providers', 'Payment provider management')
+    .addTag('mpesa-webhooks', 'M-Pesa webhook handlers')
+    .addTag('Binance', 'Binance integration')
+    .addTag('blockchain', 'Blockchain/TRON operations')
+    // Bearer token authentication (JWT access token)
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        name: 'Authorization',
-        description: 'Enter your Bearer token',
+        name: 'JWT',
+        description: 'Enter your JWT access token (obtained from /auth/login)',
         in: 'header',
       },
       'bearer',
     )
+    // Cookie authentication (for refresh token endpoints)
+    .addCookieAuth('refreshToken', {
+      type: 'apiKey',
+      in: 'cookie',
+      name: 'refreshToken',
+      description: 'HttpOnly refresh token cookie (set automatically on login)',
+    })
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

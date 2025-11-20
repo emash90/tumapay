@@ -259,9 +259,33 @@ export class AuthController {
     status: 401,
     description: 'Unauthorized',
   })
-  async getSession(@Headers('authorization') authorization: string) {
-    const token = authorization?.replace('Bearer ', '');
-    return this.authService.getSession(token);
+  async getSession(
+    @CurrentUser() user: User,
+    @Req() request: Request,
+  ) {
+    // For JWT auth, we don't have a traditional session object
+    // Return user info and auth type
+    const authType = (request as any).authType || 'jwt';
+    const session = (request as any).session;
+
+    return {
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          emailVerified: user.emailVerified,
+          isActive: user.isActive,
+        },
+        session: session ? {
+          expiresAt: session.expiresAt,
+          createdAt: session.createdAt,
+        } : null,
+        authType,
+      },
+    };
   }
 
   @Get('me')
