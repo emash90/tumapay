@@ -16,3 +16,5 @@ export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
 
 export { Alert, AlertTitle, AlertDescription } from './alert';
 export type { AlertProps } from './alert';
+
+export { Skeleton, CardSkeleton, TableSkeleton, ChartSkeleton } from './skeleton';

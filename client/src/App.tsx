@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicRoute } from '@/components/auth/PublicRoute';
+import { DashboardLayout } from '@/components/layout';
 import Login from '@/pages/auth/Login';
 import Signup from '@/pages/auth/Signup';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
@@ -18,6 +19,79 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Placeholder pages for dashboard sub-routes
+function WalletsPage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Wallets</h1>
+      <p className="text-gray-500 mt-2">Manage your multi-currency wallets</p>
+    </div>
+  );
+}
+
+function TransfersPage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Transfers</h1>
+      <p className="text-gray-500 mt-2">Send and receive money internationally</p>
+    </div>
+  );
+}
+
+function BeneficiariesPage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Beneficiaries</h1>
+      <p className="text-gray-500 mt-2">Manage your recipients</p>
+    </div>
+  );
+}
+
+function ExchangeRatesPage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Exchange Rates</h1>
+      <p className="text-gray-500 mt-2">View and convert currencies</p>
+    </div>
+  );
+}
+
+function HistoryPage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Transaction History</h1>
+      <p className="text-gray-500 mt-2">View all your past transactions</p>
+    </div>
+  );
+}
+
+function SettingsPage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+      <p className="text-gray-500 mt-2">Manage your account settings</p>
+    </div>
+  );
+}
+
+function ProfilePage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
+      <p className="text-gray-500 mt-2">View and edit your profile</p>
+    </div>
+  );
+}
+
+function SupportPage() {
+  return (
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <h1 className="text-2xl font-bold text-gray-900">Help & Support</h1>
+      <p className="text-gray-500 mt-2">Get help with your account</p>
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -58,15 +132,32 @@ function App() {
             }
           />
 
-          {/* Protected Routes - Redirect to login if not authenticated */}
+          {/* Protected Routes - Dashboard with layout */}
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <DashboardLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            {/* Dashboard index route */}
+            <Route index element={<Dashboard />} />
+
+            {/* Dashboard sub-routes */}
+            <Route path="wallets" element={<WalletsPage />} />
+            <Route path="wallets/deposit" element={<WalletsPage />} />
+            <Route path="wallets/withdraw" element={<WalletsPage />} />
+            <Route path="transfers" element={<TransfersPage />} />
+            <Route path="transfers/new" element={<TransfersPage />} />
+            <Route path="beneficiaries" element={<BeneficiariesPage />} />
+            <Route path="beneficiaries/new" element={<BeneficiariesPage />} />
+            <Route path="exchange-rates" element={<ExchangeRatesPage />} />
+            <Route path="history" element={<HistoryPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="support" element={<SupportPage />} />
+          </Route>
 
           {/* Default Redirect */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
