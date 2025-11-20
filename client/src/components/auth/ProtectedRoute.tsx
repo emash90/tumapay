@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth.store';
 import { useRefreshToken } from '@/hooks/useAuth';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 /**
@@ -14,19 +14,21 @@ interface ProtectedRouteProps {
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated } = useAuthStore();
-  const { mutate: refreshToken, isPending } = useRefreshToken();
+  const { mutate: refreshToken, isPending, isIdle, isError } = useRefreshToken();
   const location = useLocation();
+  const [hasAttemptedRefresh, setHasAttemptedRefresh] = useState(false);
 
   // Try to refresh token on mount only (not on state changes)
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && isIdle && !hasAttemptedRefresh) {
+      setHasAttemptedRefresh(true);
       refreshToken();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps = run only on mount
+  }, [isAuthenticated, isIdle, hasAttemptedRefresh, refreshToken]);
 
   // Show loading state while checking authentication
-  if (isPending) {
+  // Also show loading if we haven't attempted refresh yet and aren't authenticated
+  if (isPending || (!isAuthenticated && !hasAttemptedRefresh)) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-primary-900 via-primary-700 to-secondary-700">
         <div className="text-center">
@@ -37,10 +39,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
+  // Redirect to login if not authenticated after refresh attempt
+  if (!isAuthenticated && (isError || hasAttemptedRefresh)) {
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
 
-  return <>{children}</>;
+  // Render children or Outlet for nested routes
+  return <>{children || <Outlet />}</>;
 }

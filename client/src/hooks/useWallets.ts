@@ -35,7 +35,17 @@ export function useWallets() {
   return useQuery({
     queryKey: walletKeys.list(),
     queryFn: () => walletService.getWallets(),
-    select: (data) => data?.data?.wallets ?? [],
+    select: (data: any) => {
+      // The get utility already extracts response.data.data, so data is { wallets: [...] }
+      const wallets = data?.wallets ?? [];
+      // Transform string balances to numbers (API returns decimal strings)
+      return wallets.map((wallet: any) => ({
+        ...wallet,
+        availableBalance: parseFloat(wallet.availableBalance) || 0,
+        pendingBalance: parseFloat(wallet.pendingBalance) || 0,
+        totalBalance: parseFloat(wallet.totalBalance) || 0,
+      }));
+    },
   });
 }
 

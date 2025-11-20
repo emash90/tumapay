@@ -1,18 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useWallets, useWalletHistory } from '@/hooks/useWallets';
 import { WalletCard } from '@/components/wallets/WalletCard';
 import { DepositModal } from '@/components/wallets/DepositModal';
 import { WithdrawModal } from '@/components/wallets/WithdrawModal';
 import { TransactionHistory } from '@/components/wallets/TransactionHistory';
 import { CardSkeleton } from '@/components/ui/skeleton';
-import { Wallet, AlertCircle } from 'lucide-react';
+import { Wallet, AlertCircle, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { Wallet as WalletType } from '@/api/types';
 
 export default function Wallets() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { data: wallets, isLoading, error } = useWallets();
   const [selectedWallet, setSelectedWallet] = useState<WalletType | null>(null);
   const [depositWallet, setDepositWallet] = useState<WalletType | null>(null);
   const [withdrawWallet, setWithdrawWallet] = useState<WalletType | null>(null);
+  const [showDirectDeposit, setShowDirectDeposit] = useState(false);
 
   // Get history for selected wallet
   const { data: historyData, isLoading: historyLoading } = useWalletHistory(
@@ -20,11 +25,54 @@ export default function Wallets() {
     50
   );
 
-  // Sort wallets to prioritize KES
-  const sortedWallets = wallets?.sort((a: WalletType, b: WalletType) => {
+  // Check if we're on /wallets/deposit route
+  const isDepositRoute = location.pathname === '/wallets/deposit';
+  const isWithdrawRoute = location.pathname === '/wallets/withdraw';
+
+  // Handle deposit route - auto-open deposit modal
+  useEffect(() => {
+    if (isDepositRoute && !isLoading) {
+      // Find KES wallet or show direct deposit
+      const kesWallet = wallets?.find((w: WalletType) => w.currency === 'KES');
+      if (kesWallet) {
+        setDepositWallet(kesWallet);
+      } else {
+        // No KES wallet - show direct deposit for new wallet creation
+        setShowDirectDeposit(true);
+      }
+    }
+  }, [isDepositRoute, isLoading, wallets]);
+
+  // Handle withdraw route
+  useEffect(() => {
+    if (isWithdrawRoute && !isLoading && wallets?.length) {
+      const kesWallet = wallets.find((w: WalletType) => w.currency === 'KES');
+      if (kesWallet) {
+        setWithdrawWallet(kesWallet);
+      }
+    }
+  }, [isWithdrawRoute, isLoading, wallets]);
+
+  const handleDepositClose = () => {
+    setDepositWallet(null);
+    setShowDirectDeposit(false);
+    if (isDepositRoute) {
+      navigate('/wallets');
+    }
+  };
+
+  const handleWithdrawClose = () => {
+    setWithdrawWallet(null);
+    if (isWithdrawRoute) {
+      navigate('/wallets');
+    }
+  };
+
+  // Sort wallets to prioritize KES (create copy to avoid mutating original)
+  const sortedWallets = wallets ? [...wallets].sort((a: WalletType, b: WalletType) => {
     const order = ['KES', 'USD', 'USDT', 'TRY'];
     return order.indexOf(a.currency) - order.indexOf(b.currency);
-  });
+  }) : [];
 
   if (error) {
     return (
@@ -55,7 +103,7 @@ export default function Wallets() {
             <CardSkeleton />
             <CardSkeleton />
           </>
-        ) : sortedWallets && sortedWallets.length > 0 ? (
+        ) : sortedWallets.length > 0 ? (
           sortedWallets.map((wallet: WalletType) => (
             <WalletCard
               key={wallet.id}
@@ -68,8 +116,12 @@ export default function Wallets() {
         ) : (
           <div className="col-span-full flex flex-col items-center justify-center py-12 bg-white rounded-xl border border-gray-200">
             <Wallet className="h-12 w-12 text-gray-300 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No wallets found</h3>
-            <p className="text-gray-500">Your wallets will appear here once created.</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No wallets yet</h3>
+            <p className="text-gray-500 mb-4">Make your first M-Pesa deposit to create a KES wallet</p>
+            <Button onClick={() => setShowDirectDeposit(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Deposit via M-Pesa
+            </Button>
           </div>
         )}
       </div>
@@ -98,14 +150,14 @@ export default function Wallets() {
 
       {/* Modals */}
       <DepositModal
-        isOpen={!!depositWallet}
-        onClose={() => setDepositWallet(null)}
+        isOpen={!!depositWallet || showDirectDeposit}
+        onClose={handleDepositClose}
         wallet={depositWallet}
       />
 
       <WithdrawModal
         isOpen={!!withdrawWallet}
-        onClose={() => setWithdrawWallet(null)}
+        onClose={handleWithdrawClose}
         wallet={withdrawWallet}
       />
     </div>

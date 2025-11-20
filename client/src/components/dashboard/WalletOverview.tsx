@@ -18,43 +18,7 @@ interface WalletOverviewProps {
   isLoading?: boolean;
 }
 
-// Default mock data - will be replaced with real API data
-const defaultWallets: WalletData[] = [
-  {
-    id: '1',
-    currency: 'KES',
-    balance: 2750000.50,
-    symbol: 'KSh',
-    color: 'text-primary-600',
-    bgColor: 'bg-gradient-to-br from-primary-50 to-primary-100'
-  },
-  {
-    id: '2',
-    currency: 'USD',
-    balance: 12500.50,
-    symbol: '$',
-    color: 'text-green-600',
-    bgColor: 'bg-gradient-to-br from-green-50 to-green-100'
-  },
-  {
-    id: '3',
-    currency: 'USDT',
-    balance: 8500.25,
-    symbol: '₮',
-    color: 'text-secondary-600',
-    bgColor: 'bg-gradient-to-br from-secondary-50 to-secondary-100'
-  },
-  {
-    id: '4',
-    currency: 'TRY',
-    balance: 54200.75,
-    symbol: '₺',
-    color: 'text-accent-600',
-    bgColor: 'bg-gradient-to-br from-accent-50 to-accent-100'
-  },
-];
-
-export function WalletOverview({ wallets = defaultWallets, isLoading }: WalletOverviewProps) {
+export function WalletOverview({ wallets = [], isLoading }: WalletOverviewProps) {
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -95,6 +59,32 @@ export function WalletOverview({ wallets = defaultWallets, isLoading }: WalletOv
     }
     return sum;
   }, 0);
+
+  // Handle empty wallets
+  if (wallets.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-primary-100">
+              <Wallet className="h-5 w-5 text-primary-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Wallet Overview</h3>
+              <p className="text-sm text-gray-500">No wallets yet</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center">
+          <p className="text-gray-500 mb-4">Make your first deposit to create a wallet</p>
+          <Button variant="outline" size="sm" className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Funds
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">

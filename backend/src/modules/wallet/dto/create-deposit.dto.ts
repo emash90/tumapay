@@ -6,8 +6,9 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsKenyanPhoneNumber } from '../../../common/validators/kenyan-phone.validator';
+import { IsKenyanPhoneNumber, normalizeKenyanPhone } from '../../../common/validators/kenyan-phone.validator';
 
 /**
  * M-Pesa Deposit DTO
@@ -27,13 +28,14 @@ export class MpesaDepositDto {
   amount: number;
 
   @ApiProperty({
-    description: 'Phone number for M-Pesa payment (254XXXXXXXXX format)',
-    example: '254712345678',
-    pattern: '^254[17]\\d{8}$',
+    description: 'Phone number for M-Pesa payment (accepts 0712345678 or 254712345678)',
+    example: '0712345678',
+    pattern: '^(0[17]\\d{8}|254[17]\\d{8})$',
   })
   @IsNotEmpty({ message: 'Phone number is required' })
   @IsString({ message: 'Phone number must be a string' })
-  @IsKenyanPhoneNumber({ message: 'Phone number must be in format 254XXXXXXXXX (e.g., 254712345678)' })
+  @Transform(({ value }) => normalizeKenyanPhone(value))
+  @IsKenyanPhoneNumber({ message: 'Phone number must be in format 0712345678 or 254712345678' })
   phoneNumber: string;
 
   @ApiProperty({

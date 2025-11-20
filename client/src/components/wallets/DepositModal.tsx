@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useDepositMpesa } from '@/hooks/useWallets';
-import { cn } from '@/lib/utils';
-import { Smartphone, Building2, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import type { Wallet } from '@/api/types';
 
 interface DepositModalProps {
@@ -16,15 +15,12 @@ interface DepositModalProps {
   wallet: Wallet | null;
 }
 
-type DepositMethod = 'mpesa' | 'bank';
-
 interface MpesaFormData {
   phoneNumber: string;
   amount: number;
 }
 
 export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
-  const [method, setMethod] = useState<DepositMethod>('mpesa');
   const [success, setSuccess] = useState(false);
 
   const {
@@ -39,12 +35,12 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
   const handleClose = () => {
     reset();
     setSuccess(false);
-    setMethod('mpesa');
     onClose();
   };
 
   const onSubmit = async (data: MpesaFormData) => {
-    if (!wallet || wallet.currency !== 'KES') return;
+    // Allow deposit without wallet (creates new KES wallet) or with KES wallet
+    if (wallet && wallet.currency !== 'KES') return;
 
     try {
       await depositMpesa.mutateAsync({
@@ -57,17 +53,19 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
     }
   };
 
-  if (!wallet) return null;
+  // Determine currency - default to KES for new wallet creation
+  const currency = wallet?.currency || 'KES';
+  const isNewWallet = !wallet;
 
   // Only KES supports M-Pesa deposits
-  const isMpesaSupported = wallet.currency === 'KES';
+  const isMpesaSupported = currency === 'KES';
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={`Deposit to ${wallet.currency} Wallet`}
-      description="Add funds to your wallet"
+      title={isNewWallet ? 'Create KES Wallet & Deposit' : `Deposit to ${currency} Wallet`}
+      description={isNewWallet ? 'Make your first M-Pesa deposit to create your KES wallet' : 'Add funds to your wallet'}
     >
       {success ? (
         <div className="text-center py-6">
@@ -75,113 +73,104 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
             <CheckCircle2 className="h-8 w-8 text-green-600" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Deposit Initiated!
+            {isNewWallet ? 'Wallet Creation Initiated!' : 'Deposit Initiated!'}
           </h3>
           <p className="text-gray-500 mb-6">
             Please complete the payment on your phone. You will receive an M-Pesa prompt shortly.
+            {isNewWallet && ' Your KES wallet will be created automatically.'}
           </p>
           <Button onClick={handleClose}>Done</Button>
         </div>
+      ) : isMpesaSupported ? (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* M-Pesa Header */}
+          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-100">
+            <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">M</span>
+            </div>
+            <div>
+              <p className="font-medium text-green-900">M-Pesa Deposit</p>
+              <p className="text-xs text-green-600">Instant • Secure • No fees</p>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="phoneNumber">Safaricom Phone Number</Label>
+            <Input
+              id="phoneNumber"
+              placeholder="0712345678"
+              {...register('phoneNumber', {
+                required: 'Phone number is required',
+                pattern: {
+                  value: /^0[17][0-9]{8}$/,
+                  message: 'Enter valid Safaricom number (07XX or 01XX)',
+                },
+              })}
+            />
+            {errors.phoneNumber && (
+              <p className="text-sm text-red-500 mt-1">{errors.phoneNumber.message}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">Format: 0712345678</p>
+          </div>
+
+          <div>
+            <Label htmlFor="amount">Amount (KES)</Label>
+            <Input
+              id="amount"
+              type="number"
+              placeholder="1000"
+              {...register('amount', {
+                required: 'Amount is required',
+                min: { value: 10, message: 'Minimum amount is KES 10' },
+                max: { value: 150000, message: 'Maximum amount is KES 150,000' },
+                valueAsNumber: true,
+              })}
+            />
+            {errors.amount && (
+              <p className="text-sm text-red-500 mt-1">{errors.amount.message}</p>
+            )}
+          </div>
+
+          {depositMpesa.isError && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {(() => {
+                  const error = depositMpesa.error as any;
+                  const status = error?.response?.status;
+                  const data = error?.response?.data;
+
+                  if (status === 403) {
+                    return 'Business verification required. Please complete KYB verification to make deposits.';
+                  }
+                  if (status === 400) {
+                    // Show validation errors
+                    const message = data?.message;
+                    if (Array.isArray(message)) {
+                      return message.join(', ');
+                    }
+                    return message || 'Invalid request. Please check your inputs.';
+                  }
+                  return data?.message || error?.message || 'Failed to initiate deposit';
+                })()}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={handleClose} className="flex-1">
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={depositMpesa.isPending} className="flex-1">
+              Deposit
+            </Button>
+          </div>
+        </form>
       ) : (
-        <>
-          {/* Method Selection */}
-          {isMpesaSupported && (
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <button
-                type="button"
-                onClick={() => setMethod('mpesa')}
-                className={cn(
-                  'p-4 rounded-lg border-2 text-left transition-all',
-                  method === 'mpesa'
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                )}
-              >
-                <Smartphone className={cn('h-5 w-5 mb-2', method === 'mpesa' ? 'text-primary-600' : 'text-gray-400')} />
-                <p className="font-medium text-sm">M-Pesa</p>
-                <p className="text-xs text-gray-500">Instant deposit</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMethod('bank')}
-                className={cn(
-                  'p-4 rounded-lg border-2 text-left transition-all',
-                  method === 'bank'
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                )}
-              >
-                <Building2 className={cn('h-5 w-5 mb-2', method === 'bank' ? 'text-primary-600' : 'text-gray-400')} />
-                <p className="font-medium text-sm">Bank Transfer</p>
-                <p className="text-xs text-gray-500">1-3 business days</p>
-              </button>
-            </div>
-          )}
-
-          {method === 'mpesa' && isMpesaSupported ? (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div>
-                <Label htmlFor="phoneNumber">Phone Number</Label>
-                <Input
-                  id="phoneNumber"
-                  placeholder="254712345678"
-                  {...register('phoneNumber', {
-                    required: 'Phone number is required',
-                    pattern: {
-                      value: /^254[0-9]{9}$/,
-                      message: 'Enter valid Kenyan phone (254XXXXXXXXX)',
-                    },
-                  })}
-                />
-                {errors.phoneNumber && (
-                  <p className="text-sm text-red-500 mt-1">{errors.phoneNumber.message}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="amount">Amount (KES)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="1000"
-                  {...register('amount', {
-                    required: 'Amount is required',
-                    min: { value: 10, message: 'Minimum amount is KES 10' },
-                    max: { value: 150000, message: 'Maximum amount is KES 150,000' },
-                    valueAsNumber: true,
-                  })}
-                />
-                {errors.amount && (
-                  <p className="text-sm text-red-500 mt-1">{errors.amount.message}</p>
-                )}
-              </div>
-
-              {depositMpesa.isError && (
-                <Alert variant="destructive">
-                  <AlertDescription>
-                    {(depositMpesa.error as Error)?.message || 'Failed to initiate deposit'}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={handleClose} className="flex-1">
-                  Cancel
-                </Button>
-                <Button type="submit" isLoading={depositMpesa.isPending} className="flex-1">
-                  Deposit
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="text-center py-6">
-              <Building2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">
-                Bank transfer deposits coming soon for {wallet.currency}.
-              </p>
-            </div>
-          )}
-        </>
+        <div className="text-center py-6">
+          <p className="text-gray-500">
+            M-Pesa deposits are only available for KES wallets.
+          </p>
+        </div>
       )}
     </Modal>
   );
