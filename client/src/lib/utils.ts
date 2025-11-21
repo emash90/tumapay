@@ -6,12 +6,34 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
+  // Handle non-ISO currencies (crypto)
+  const cryptoCurrencies: Record<string, string> = {
+    USDT: '₮',
+    BTC: '₿',
+    ETH: 'Ξ',
+  }
+
+  if (cryptoCurrencies[currency]) {
+    return `${cryptoCurrencies[currency]}${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`
+  }
+
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  } catch {
+    // Fallback for unknown currencies
+    return `${currency} ${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`
+  }
 }
 
 export function formatDate(date: Date | string): string {

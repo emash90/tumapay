@@ -6,13 +6,14 @@
 // Currency types
 export type Currency = 'KES' | 'USDT' | 'TRY' | 'USD';
 
-// Transaction status
+// Transaction status (lowercase to match backend enum values)
 export type TransactionStatus =
   | 'pending'
   | 'processing'
   | 'completed'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'reversed';
 
 // Transaction type
 export type TransactionType =

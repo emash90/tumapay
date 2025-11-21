@@ -3,132 +3,92 @@
  * Types for cross-border transfers (KES → Turkey via USDT)
  */
 
-import type { BaseEntity, Currency, PaginationParams } from './common';
+import type { BaseEntity, TransactionStatus } from './common';
 import type { Beneficiary } from './beneficiaries';
 
-// Transfer status (more detailed than TransactionStatus)
-export type TransferStatus =
-  | 'initiated'
-  | 'wallet_debited'
-  | 'converting_to_usdt'
-  | 'usdt_ready'
-  | 'sending_to_partner'
-  | 'partner_received'
-  | 'converting_to_try'
-  | 'sending_to_beneficiary'
-  | 'completed'
-  | 'failed'
-  | 'refunded';
+export type { TransactionStatus };
 
-// Transfer entity
+// Transfer entity (matches TransferResponseDto)
 export interface Transfer extends BaseEntity {
-  transactionId: string; // Unique transaction reference
+  transactionId: string;
+  reference: string;
   businessId: string;
+  userId: string;
   beneficiaryId: string;
-  beneficiary?: Beneficiary;
+  beneficiary: Beneficiary;
 
-  // Source (Kenya)
-  sourceAmount: string; // KES amount
-  sourceCurrency: Currency;
+  // Amounts
+  kesAmount: number;
+  usdAmount: number;
+  usdtAmount: number;
 
-  // Bridge (USDT)
-  usdtAmount: string;
-  tronTxHash?: string; // TRON blockchain transaction hash
-
-  // Destination (Turkey)
-  destinationAmount: string; // TRY amount
-  destinationCurrency: Currency;
-
-  // Exchange rates at time of transfer
-  kesUsdtRate: string;
-  usdtTryRate: string;
-
-  // Fees
-  platformFee: string;
-  blockchainFee?: string;
-  totalFees: string;
+  // Exchange rate
+  exchangeRate: number;
+  rateSource?: string;
 
   // Status
-  status: TransferStatus;
-  failureReason?: string;
+  status: TransactionStatus;
+  currentStep: string;
+
+  // TRON
+  tronTransactionHash?: string;
+
+  // Metadata
+  description?: string;
+  externalReference?: string;
 
   // Timestamps
-  initiatedAt: string;
   completedAt?: string;
   failedAt?: string;
+
+  // Error info
+  errorMessage?: string;
+  errorCode?: string;
 }
 
 // Transfer timeline event
 export interface TransferTimelineEvent {
   id: string;
-  transferId: string;
-  status: TransferStatus;
-  message: string;
-  metadata?: Record<string, unknown>;
-  createdAt: string;
+  step: string;
+  status: 'success' | 'failed' | 'pending';
+  message?: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
 }
 
 // ==================== Request Types ====================
 
-// Initiate transfer request
-export interface InitiateTransferRequest {
+// Create transfer request
+export interface CreateTransferRequest {
   beneficiaryId: string;
-  sourceAmount: string; // Amount in KES
-  sourceCurrency: 'KES';
-  destinationCurrency: 'TRY';
+  amount: number; // Amount in KES (100 - 1,000,000)
+  description?: string;
+  reference?: string;
 }
 
-// Transfer list query
-export interface TransferListParams extends PaginationParams {
-  status?: TransferStatus | TransferStatus[];
+// Transfer list query params
+export interface TransferListParams {
+  status?: TransactionStatus;
   beneficiaryId?: string;
   startDate?: string;
   endDate?: string;
-  minAmount?: string;
-  maxAmount?: string;
+  limit?: number;
+  offset?: number;
 }
 
 // ==================== Response Types ====================
-
-// Transfer quote (before initiating)
-export interface TransferQuoteResponse {
-  sourceAmount: string;
-  sourceCurrency: Currency;
-  destinationAmount: string;
-  destinationCurrency: Currency;
-  exchangeRate: string;
-  platformFee: string;
-  estimatedBlockchainFee: string;
-  totalFees: string;
-  estimatedArrival: string; // ISO date string
-  expiresAt: string; // Quote expiration time
-}
 
 // Transfer response
 export interface TransferResponse {
   transfer: Transfer;
 }
 
-// Transfer status response
-export interface TransferStatusResponse {
-  transactionId: string;
-  status: TransferStatus;
-  transfer: Transfer;
+// Transfers list response
+export interface TransfersListResponse {
+  transfers: Transfer[];
 }
 
 // Transfer timeline response
 export interface TransferTimelineResponse {
-  transactionId: string;
   timeline: TransferTimelineEvent[];
-}
-
-// Transfers list response
-export interface TransfersListResponse {
-  transfers: Transfer[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
 }

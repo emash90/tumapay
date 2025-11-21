@@ -6,7 +6,6 @@
 // Common types
 export type {
   Currency,
-  TransactionStatus,
   TransactionType,
   TransactionDirection,
   PaymentProvider,
@@ -89,14 +88,12 @@ export type {
 
 // Transfers types
 export type {
-  TransferStatus,
+  TransactionStatus,
   Transfer,
   TransferTimelineEvent,
-  InitiateTransferRequest,
+  CreateTransferRequest,
   TransferListParams,
-  TransferQuoteResponse,
   TransferResponse,
-  TransferStatusResponse,
   TransferTimelineResponse,
   TransfersListResponse,
 } from './transfers';
