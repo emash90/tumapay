@@ -75,12 +75,15 @@ export class BeneficiariesController {
   async create(
     @CurrentUser('businessId') businessId: string,
     @Body() createBeneficiaryDto: CreateBeneficiaryDto,
-  ): Promise<BeneficiaryResponseDto> {
+  ): Promise<{ success: boolean; data: { beneficiary: BeneficiaryResponseDto } }> {
     const beneficiary = await this.beneficiariesService.create(
       businessId,
       createBeneficiaryDto,
     );
-    return BeneficiaryResponseDto.fromEntity(beneficiary);
+    return {
+      success: true,
+      data: { beneficiary: BeneficiaryResponseDto.fromEntity(beneficiary) },
+    };
   }
 
   /**
@@ -117,12 +120,15 @@ export class BeneficiariesController {
   async findAll(
     @CurrentUser('businessId') businessId: string,
     @Query() query: BeneficiaryQueryDto,
-  ): Promise<BeneficiaryResponseDto[]> {
+  ): Promise<{ success: boolean; data: { beneficiaries: BeneficiaryResponseDto[] } }> {
     const beneficiaries = await this.beneficiariesService.findAll(
       businessId,
       query,
     );
-    return BeneficiaryResponseDto.fromEntities(beneficiaries);
+    return {
+      success: true,
+      data: { beneficiaries: BeneficiaryResponseDto.fromEntities(beneficiaries) },
+    };
   }
 
   /**
@@ -144,9 +150,12 @@ export class BeneficiariesController {
   async findOne(
     @CurrentUser('businessId') businessId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<BeneficiaryResponseDto> {
+  ): Promise<{ success: boolean; data: { beneficiary: BeneficiaryResponseDto } }> {
     const beneficiary = await this.beneficiariesService.findOne(id, businessId);
-    return BeneficiaryResponseDto.fromEntity(beneficiary);
+    return {
+      success: true,
+      data: { beneficiary: BeneficiaryResponseDto.fromEntity(beneficiary) },
+    };
   }
 
   /**
@@ -196,13 +205,16 @@ export class BeneficiariesController {
     @CurrentUser('businessId') businessId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateBeneficiaryDto: UpdateBeneficiaryDto,
-  ): Promise<BeneficiaryResponseDto> {
+  ): Promise<{ success: boolean; data: { beneficiary: BeneficiaryResponseDto } }> {
     const beneficiary = await this.beneficiariesService.update(
       id,
       businessId,
       updateBeneficiaryDto,
     );
-    return BeneficiaryResponseDto.fromEntity(beneficiary);
+    return {
+      success: true,
+      data: { beneficiary: BeneficiaryResponseDto.fromEntity(beneficiary) },
+    };
   }
 
   /**
@@ -245,12 +257,15 @@ export class BeneficiariesController {
   async verify(
     @CurrentUser('businessId') businessId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<BeneficiaryResponseDto> {
+  ): Promise<{ success: boolean; data: { beneficiary: BeneficiaryResponseDto } }> {
     const beneficiary = await this.beneficiariesService.markAsVerified(
       id,
       businessId,
     );
-    return BeneficiaryResponseDto.fromEntity(beneficiary);
+    return {
+      success: true,
+      data: { beneficiary: BeneficiaryResponseDto.fromEntity(beneficiary) },
+    };
   }
 
   /**
@@ -271,9 +286,12 @@ export class BeneficiariesController {
   async activate(
     @CurrentUser('businessId') businessId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<BeneficiaryResponseDto> {
+  ): Promise<{ success: boolean; data: { beneficiary: BeneficiaryResponseDto } }> {
     const beneficiary = await this.beneficiariesService.activate(id, businessId);
-    return BeneficiaryResponseDto.fromEntity(beneficiary);
+    return {
+      success: true,
+      data: { beneficiary: BeneficiaryResponseDto.fromEntity(beneficiary) },
+    };
   }
 
   /**
@@ -294,9 +312,12 @@ export class BeneficiariesController {
   async deactivate(
     @CurrentUser('businessId') businessId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<BeneficiaryResponseDto> {
+  ): Promise<{ success: boolean; data: { beneficiary: BeneficiaryResponseDto } }> {
     const beneficiary = await this.beneficiariesService.deactivate(id, businessId);
-    return BeneficiaryResponseDto.fromEntity(beneficiary);
+    return {
+      success: true,
+      data: { beneficiary: BeneficiaryResponseDto.fromEntity(beneficiary) },
+    };
   }
 
   /**
@@ -318,9 +339,12 @@ export class BeneficiariesController {
   async restore(
     @CurrentUser('businessId') businessId: string,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<BeneficiaryResponseDto> {
+  ): Promise<{ success: boolean; data: { beneficiary: BeneficiaryResponseDto } }> {
     const beneficiary = await this.beneficiariesService.restore(id, businessId);
-    return BeneficiaryResponseDto.fromEntity(beneficiary);
+    return {
+      success: true,
+      data: { beneficiary: BeneficiaryResponseDto.fromEntity(beneficiary) },
+    };
   }
 
   /**

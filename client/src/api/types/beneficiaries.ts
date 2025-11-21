@@ -5,51 +5,53 @@
 
 import type { BaseEntity } from './common';
 
-// Beneficiary entity
+// Beneficiary entity (aligned with backend response)
 export interface Beneficiary extends BaseEntity {
   businessId: string;
-  firstName: string;
-  lastName: string;
-  tcKimlik: string; // Turkish National ID (11 digits)
-  iban: string; // Turkish IBAN (TR + 24 digits)
-  phoneNumber?: string;
-  email?: string;
-  address?: string;
-  city?: string;
-  isActive: boolean;
+  name: string;
+  country: string;
+  currency: string;
+  iban: string;
+  ibanFormatted: string;
+  bankName: string | null;
+  bankCode: string | null;
+  phone: string | null;
+  email: string | null;
+  additionalDetails: Record<string, any> | null;
   isVerified: boolean;
-  verifiedAt?: string;
-  deletedAt?: string;
+  isActive: boolean;
 }
 
 // ==================== Request Types ====================
 
 // Create beneficiary request
 export interface CreateBeneficiaryRequest {
-  firstName: string;
-  lastName: string;
-  tcKimlik: string;
+  name: string;
   iban: string;
-  phoneNumber?: string;
+  nationalId: string;
+  country?: string;
+  currency?: string;
+  bankName?: string;
+  bankCode?: string;
+  phone?: string;
   email?: string;
-  address?: string;
-  city?: string;
+  additionalDetails?: Record<string, any>;
 }
 
 // Update beneficiary request
 export interface UpdateBeneficiaryRequest {
-  firstName?: string;
-  lastName?: string;
-  phoneNumber?: string;
+  name?: string;
+  bankName?: string;
+  bankCode?: string;
+  phone?: string;
   email?: string;
-  address?: string;
-  city?: string;
-  // Note: tcKimlik and IBAN cannot be updated after creation
+  additionalDetails?: Record<string, any>;
+  // Note: iban and nationalId cannot be updated after creation
 }
 
 // ==================== Response Types ====================
 
-// Beneficiary response
+// Single beneficiary response
 export interface BeneficiaryResponse {
   beneficiary: Beneficiary;
 }
@@ -61,15 +63,10 @@ export interface BeneficiariesListResponse {
 
 // Beneficiary stats response
 export interface BeneficiaryStatsResponse {
-  total: number;
-  active: number;
-  inactive: number;
-  verified: number;
-  unverified: number;
+  count: number;
 }
 
 // Beneficiary action response (activate, deactivate, restore, verify)
 export interface BeneficiaryActionResponse {
-  message: string;
   beneficiary: Beneficiary;
 }

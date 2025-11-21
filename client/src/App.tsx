@@ -9,6 +9,7 @@ import ForgotPassword from '@/pages/auth/ForgotPassword';
 import ResetPassword from '@/pages/auth/ResetPassword';
 import Dashboard from '@/pages/dashboard/Dashboard';
 import Wallets from '@/pages/dashboard/Wallets';
+import Beneficiaries from '@/pages/dashboard/Beneficiaries';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -31,14 +32,6 @@ function TransfersPage() {
   );
 }
 
-function BeneficiariesPage() {
-  return (
-    <div className="p-6 bg-white rounded-xl border border-gray-200">
-      <h1 className="text-2xl font-bold text-gray-900">Beneficiaries</h1>
-      <p className="text-gray-500 mt-2">Manage your recipients</p>
-    </div>
-  );
-}
 
 function ExchangeRatesPage() {
   return (
@@ -143,8 +136,8 @@ function App() {
             {/* Other routes */}
             <Route path="/transfers" element={<TransfersPage />} />
             <Route path="/transfers/new" element={<TransfersPage />} />
-            <Route path="/beneficiaries" element={<BeneficiariesPage />} />
-            <Route path="/beneficiaries/new" element={<BeneficiariesPage />} />
+            <Route path="/beneficiaries" element={<Beneficiaries />} />
+            <Route path="/beneficiaries/new" element={<Beneficiaries />} />
             <Route path="/exchange-rates" element={<ExchangeRatesPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
