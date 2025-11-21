@@ -48,12 +48,12 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
       {/* Modal */}
       <div
         className={cn(
-          'relative w-full mx-4 bg-white rounded-xl shadow-xl animate-fade-in',
+          'relative w-full mx-4 bg-white rounded-xl shadow-xl animate-fade-in max-h-[90vh] flex flex-col',
           sizeClasses[size]
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
             {description && (
@@ -69,7 +69,7 @@ export function Modal({ isOpen, onClose, title, description, children, size = 'm
         </div>
 
         {/* Content */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

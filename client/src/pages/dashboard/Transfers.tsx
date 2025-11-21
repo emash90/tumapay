@@ -159,28 +159,28 @@ export default function Transfers() {
             {/* Transfer Info */}
             <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
               <div>
-                <p className="text-xs text-gray-500">Beneficiary</p>
-                <p className="font-medium">{selectedTransfer.beneficiary?.name}</p>
+                <p className="text-xs text-gray-700 font-semibold">Beneficiary</p>
+                <p className="text-gray-600">{selectedTransfer.beneficiary?.name}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Status</p>
-                <p className="font-medium">{selectedTransfer.status}</p>
+                <p className="text-xs text-gray-700 font-semibold">Status</p>
+                <p className="text-gray-600 capitalize">{selectedTransfer.status}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Amount Sent</p>
-                <p className="font-medium">KES {selectedTransfer.kesAmount.toLocaleString()}</p>
+                <p className="text-xs text-gray-700 font-semibold">Amount Sent</p>
+                <p className="text-gray-600">KES {selectedTransfer.kesAmount.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">USDT Amount</p>
-                <p className="font-medium">{selectedTransfer.usdtAmount.toFixed(2)} USDT</p>
+                <p className="text-xs text-gray-700 font-semibold">USDT Amount</p>
+                <p className="text-gray-600">{selectedTransfer.usdtAmount.toFixed(2)} USDT</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Exchange Rate</p>
-                <p className="font-medium">1 KES = {selectedTransfer.exchangeRate.toFixed(6)} USD</p>
+                <p className="text-xs text-gray-700 font-semibold">Exchange Rate</p>
+                <p className="text-gray-600">1 KES = {selectedTransfer.exchangeRate.toFixed(6)} USD</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Created</p>
-                <p className="font-medium">
+                <p className="text-xs text-gray-700 font-semibold">Created</p>
+                <p className="text-gray-600">
                   {new Date(selectedTransfer.createdAt).toLocaleString()}
                 </p>
               </div>
