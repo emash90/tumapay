@@ -80,7 +80,6 @@ export function useWalletHistory(walletId: string, limit?: number) {
   return useQuery({
     queryKey: walletKeys.history(walletId),
     queryFn: () => walletService.getHistory(walletId, limit),
-    select: (data) => data?.data,
     enabled: !!walletId,
   });
 }

@@ -18,7 +18,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
   const [hasAttemptedRefresh, setHasAttemptedRefresh] = useState(false);
   const [shouldRedirect, setShouldRedirect] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Try to refresh token on mount only (not on state changes)
   useEffect(() => {

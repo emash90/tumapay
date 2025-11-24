@@ -51,11 +51,11 @@ export const walletService = {
   /**
    * Get wallet transaction history
    */
-  async getHistory(walletId: string, limit?: number): Promise<ApiResponse<WalletHistoryResponse>> {
+  async getHistory(walletId: string, limit?: number): Promise<WalletHistoryResponse> {
     const url = limit
       ? `${API_ENDPOINTS.WALLETS.HISTORY(walletId)}?limit=${limit}`
       : API_ENDPOINTS.WALLETS.HISTORY(walletId);
-    return get<ApiResponse<WalletHistoryResponse>>(url);
+    return get<WalletHistoryResponse>(url);
   },
 
   /**

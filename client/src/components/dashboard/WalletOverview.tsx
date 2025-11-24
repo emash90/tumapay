@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
 import { Wallet, Plus, ArrowUpRight } from 'lucide-react';
@@ -19,6 +20,8 @@ interface WalletOverviewProps {
 }
 
 export function WalletOverview({ wallets = [], isLoading }: WalletOverviewProps) {
+  const navigate = useNavigate();
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -77,7 +80,7 @@ export function WalletOverview({ wallets = [], isLoading }: WalletOverviewProps)
         </div>
         <div className="p-6 text-center">
           <p className="text-gray-500 mb-4">Make your first deposit to create a wallet</p>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/wallets/deposit')}>
             <Plus className="h-4 w-4" />
             Add Funds
           </Button>
@@ -102,7 +105,7 @@ export function WalletOverview({ wallets = [], isLoading }: WalletOverviewProps)
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/wallets/deposit')}>
             <Plus className="h-4 w-4" />
             Add Funds
           </Button>
@@ -119,6 +122,7 @@ export function WalletOverview({ wallets = [], isLoading }: WalletOverviewProps)
                 'p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors cursor-pointer',
                 wallet.bgColor
               )}
+              onClick={() => navigate('/wallets')}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-600">{wallet.currency}</span>
@@ -133,7 +137,7 @@ export function WalletOverview({ wallets = [], isLoading }: WalletOverviewProps)
 
         {/* Quick actions */}
         <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-          <Button variant="ghost" size="sm" className="flex-1 text-gray-600">
+          <Button variant="ghost" size="sm" className="flex-1 text-gray-600" onClick={() => navigate('/wallets')}>
             View All Wallets
           </Button>
         </div>

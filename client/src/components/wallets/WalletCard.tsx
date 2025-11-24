@@ -1,6 +1,7 @@
+import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
-import { Wallet, Plus, ArrowUpRight, MoreVertical } from 'lucide-react';
+import { Wallet, Plus, ArrowUpRight, MoreVertical, History, Ban, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Wallet as WalletType } from '@/api/types';
 
@@ -9,6 +10,7 @@ interface WalletCardProps {
   onDeposit: (wallet: WalletType) => void;
   onWithdraw: (wallet: WalletType) => void;
   onViewHistory: (wallet: WalletType) => void;
+  onDeactivate?: (wallet: WalletType) => void;
 }
 
 const currencyConfig: Record<string, { color: string; bgColor: string; symbol: string }> = {
@@ -18,8 +20,27 @@ const currencyConfig: Record<string, { color: string; bgColor: string; symbol: s
   TRY: { color: 'text-accent-600', bgColor: 'bg-accent-100', symbol: '₺' },
 };
 
-export function WalletCard({ wallet, onDeposit, onWithdraw, onViewHistory }: WalletCardProps) {
+export function WalletCard({ wallet, onDeposit, onWithdraw, onViewHistory, onDeactivate }: WalletCardProps) {
   const config = currencyConfig[wallet.currency] || currencyConfig.USD;
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
@@ -37,12 +58,54 @@ export function WalletCard({ wallet, onDeposit, onWithdraw, onViewHistory }: Wal
               </p>
             </div>
           </div>
-          <button
-            onClick={() => onViewHistory(wallet)}
-            className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
+
+          {/* Dropdown Menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+
+            {showMenu && (
+              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                <button
+                  onClick={() => {
+                    onViewHistory(wallet);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  View History
+                </button>
+                {wallet.isActive ? (
+                  <button
+                    onClick={() => {
+                      onDeactivate?.(wallet);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                  >
+                    <Ban className="h-4 w-4" />
+                    Deactivate Wallet
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      // TODO: Implement activate wallet
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                  >
+                    <Power className="h-4 w-4" />
+                    Activate Wallet
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
