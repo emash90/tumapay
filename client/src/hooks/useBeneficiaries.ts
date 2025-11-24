@@ -49,7 +49,22 @@ export function useBeneficiary(id: string) {
 export function useBeneficiaryStats() {
   return useQuery({
     queryKey: beneficiaryKeys.stats(),
-    queryFn: () => beneficiaryService.getBeneficiaryStats(),
+    queryFn: async () => {
+      const response = await beneficiaryService.getBeneficiaryStats();
+      console.log('Raw beneficiary stats response:', response);
+      return response;
+    },
+    select: (data: any) => {
+      // Handle different response structures
+      if (typeof data === 'number') {
+        return { count: data };
+      }
+      if (data?.count !== undefined) {
+        return { count: data.count };
+      }
+      // If it's just the count value directly
+      return { count: 0 };
+    },
   });
 }
 

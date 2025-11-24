@@ -88,7 +88,6 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
     {
       title: 'Total Balance',
       value: formatCurrency(defaultStats.totalBalance, 'KES'),
-      change: { value: 12.5, type: 'increase' },
       icon: Wallet,
       iconColor: 'text-primary-600',
       iconBg: 'bg-primary-100',
@@ -96,7 +95,6 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
     {
       title: 'Total Transfers',
       value: defaultStats.totalTransfers.toString(),
-      change: { value: 8.2, type: 'increase' },
       icon: ArrowLeftRight,
       iconColor: 'text-secondary-600',
       iconBg: 'bg-secondary-100',
@@ -104,15 +102,13 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
     {
       title: 'Beneficiaries',
       value: defaultStats.totalBeneficiaries.toString(),
-      change: { value: 4.1, type: 'increase' },
       icon: Users,
       iconColor: 'text-accent-600',
       iconBg: 'bg-accent-100',
     },
     {
-      title: 'Monthly Volume',
+      title: 'Monthly Transfers',
       value: formatCurrency(defaultStats.monthlyVolume, 'KES'),
-      change: { value: 2.3, type: 'decrease' },
       icon: TrendingUp,
       iconColor: 'text-green-600',
       iconBg: 'bg-green-100',

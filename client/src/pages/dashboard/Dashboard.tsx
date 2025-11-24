@@ -1,5 +1,8 @@
+import { useMemo } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import { useWallets } from '@/hooks/useWallets';
+import { useTransfers } from '@/hooks/useTransfers';
+import { useBeneficiaries } from '@/hooks/useBeneficiaries';
 import { StatsCards } from '@/components/dashboard/StatsCards';
 import { WalletOverview } from '@/components/dashboard/WalletOverview';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
@@ -9,26 +12,54 @@ import { QuickActions } from '@/components/dashboard/QuickActions';
 export default function Dashboard() {
   const { user, business } = useAuthStore();
   const { data: wallets, isLoading: walletsLoading } = useWallets();
+  const { data: transfers, isLoading: transfersLoading } = useTransfers();
+  const { data: beneficiaries, isLoading: beneficiariesLoading } = useBeneficiaries();
 
   // Calculate total balance in KES from all wallets
-  const totalBalance = wallets?.reduce((sum: number, wallet: any) => {
-    if (wallet.currency === 'KES') {
-      return sum + wallet.totalBalance;
-    } else if (wallet.currency === 'USD' || wallet.currency === 'USDT') {
-      return sum + wallet.totalBalance * 130; // Approximate rate
-    } else if (wallet.currency === 'TRY') {
-      return sum + wallet.totalBalance * 4; // Approximate rate
-    }
-    return sum;
-  }, 0) || 0;
+  const totalBalance = useMemo(() => {
+    return wallets?.reduce((sum: number, wallet: any) => {
+      if (wallet.currency === 'KES') {
+        return sum + wallet.totalBalance;
+      } else if (wallet.currency === 'USD' || wallet.currency === 'USDT') {
+        return sum + wallet.totalBalance * 130; // Approximate rate
+      } else if (wallet.currency === 'TRY') {
+        return sum + wallet.totalBalance * 4; // Approximate rate
+      }
+      return sum;
+    }, 0) || 0;
+  }, [wallets]);
+
+  // Calculate monthly transfer volume (cross-border transfers only)
+  const monthlyVolume = useMemo(() => {
+    if (!transfers || transfers.length === 0) return 0;
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const monthlyTransfers = transfers.filter((transfer: any) =>
+      new Date(transfer.createdAt) >= firstDayOfMonth
+    );
+
+    // Sum up kesAmount from all transfers (amount sent in KES)
+    return monthlyTransfers.reduce((sum: number, transfer: any) => {
+      const kesAmount = parseFloat(transfer.kesAmount) || 0;
+      return sum + kesAmount;
+    }, 0);
+  }, [transfers]);
+
+  // Get total beneficiaries count from the list
+  const totalBeneficiaries = useMemo(() => {
+    return beneficiaries?.length || 0;
+  }, [beneficiaries]);
 
   // Stats from real data
   const stats = {
     totalBalance,
-    totalTransfers: 0, // TODO: Get from transactions API
-    totalBeneficiaries: 0, // TODO: Get from beneficiaries API
-    monthlyVolume: 0, // TODO: Get from transactions API
+    totalTransfers: transfers?.length || 0,
+    totalBeneficiaries,
+    monthlyVolume,
   };
+
+  const isLoading = walletsLoading || transfersLoading || beneficiariesLoading;
 
   // Transform wallets for WalletOverview component
   const walletOverviewData = wallets?.map((wallet: any) => {
@@ -60,7 +91,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <StatsCards stats={stats} isLoading={walletsLoading} />
+      <StatsCards stats={stats} isLoading={isLoading} />
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
