@@ -12,6 +12,8 @@ import type {
   MpesaWithdrawalRequest,
   BankTransferWithdrawalRequest,
   UsdtWithdrawalRequest,
+  Wallet,
+  WalletsListResponse,
 } from '@/api/types';
 
 // Query keys
@@ -31,19 +33,35 @@ export const walletKeys = {
 /**
  * Get all wallets for the business
  */
+// Raw wallet data from API with string balances
+interface RawWallet extends Omit<Wallet, 'availableBalance' | 'pendingBalance' | 'totalBalance'> {
+  availableBalance: string | number;
+  pendingBalance: string | number;
+  totalBalance: string | number;
+}
+
 export function useWallets() {
   return useQuery({
     queryKey: walletKeys.list(),
-    queryFn: () => walletService.getWallets(),
-    select: (data: any) => {
+    queryFn: async () => {
+      const response = await walletService.getWallets();
+      return response.data;
+    },
+    select: (data: WalletsListResponse | { wallets: RawWallet[] }) => {
       // The get utility already extracts response.data.data, so data is { wallets: [...] }
       const wallets = data?.wallets ?? [];
       // Transform string balances to numbers (API returns decimal strings)
-      return wallets.map((wallet: any) => ({
+      return wallets.map((wallet: RawWallet): Wallet => ({
         ...wallet,
-        availableBalance: parseFloat(wallet.availableBalance) || 0,
-        pendingBalance: parseFloat(wallet.pendingBalance) || 0,
-        totalBalance: parseFloat(wallet.totalBalance) || 0,
+        availableBalance: typeof wallet.availableBalance === 'string'
+          ? parseFloat(wallet.availableBalance) || 0
+          : wallet.availableBalance || 0,
+        pendingBalance: typeof wallet.pendingBalance === 'string'
+          ? parseFloat(wallet.pendingBalance) || 0
+          : wallet.pendingBalance || 0,
+        totalBalance: typeof wallet.totalBalance === 'string'
+          ? parseFloat(wallet.totalBalance) || 0
+          : wallet.totalBalance || 0,
       }));
     },
   });

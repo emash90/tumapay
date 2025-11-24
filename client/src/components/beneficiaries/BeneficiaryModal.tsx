@@ -2,6 +2,7 @@ import { Modal } from '@/components/ui/modal';
 import { BeneficiaryForm } from './BeneficiaryForm';
 import { useCreateBeneficiary, useUpdateBeneficiary } from '@/hooks/useBeneficiaries';
 import type { Beneficiary, CreateBeneficiaryRequest, UpdateBeneficiaryRequest } from '@/api/types';
+import type { MutationError } from '@/api/errors';
 
 interface BeneficiaryModalProps {
   isOpen: boolean;
@@ -46,8 +47,8 @@ export function BeneficiaryModal({
   };
 
   // Extract error message from mutation error
-  const getErrorMessage = () => {
-    const error = mutation.error as any;
+  const getErrorMessage = (): string | null => {
+    const error = mutation.error as MutationError | null;
     if (!error) return null;
 
     const status = error?.response?.status;
@@ -66,7 +67,7 @@ export function BeneficiaryModal({
       }
       return message || 'Invalid request. Please check your inputs.';
     }
-    return data?.message || error?.message || 'An error occurred';
+    return (typeof data?.message === 'string' ? data.message : null) || error?.message || 'An error occurred';
   };
 
   return (

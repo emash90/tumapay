@@ -24,7 +24,25 @@ export function useTransfers(params?: TransferListParams) {
   return useQuery({
     queryKey: transferKeys.list(params),
     queryFn: () => transferService.listTransfers(params),
-    select: (data) => data?.transfers ?? [],
+    select: (data) => {
+      const transfers = data?.transfers ?? [];
+      // Transform string amounts to numbers (API returns decimal strings)
+      return transfers.map((transfer: any) => ({
+        ...transfer,
+        kesAmount: typeof transfer.kesAmount === 'string'
+          ? parseFloat(transfer.kesAmount) || 0
+          : transfer.kesAmount || 0,
+        usdAmount: typeof transfer.usdAmount === 'string'
+          ? parseFloat(transfer.usdAmount) || 0
+          : transfer.usdAmount || 0,
+        usdtAmount: typeof transfer.usdtAmount === 'string'
+          ? parseFloat(transfer.usdtAmount) || 0
+          : transfer.usdtAmount || 0,
+        exchangeRate: typeof transfer.exchangeRate === 'string'
+          ? parseFloat(transfer.exchangeRate) || 0
+          : transfer.exchangeRate || 0,
+      }));
+    },
     staleTime: 0, // Always refetch on mount
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,

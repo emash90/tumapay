@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatCurrency } from '@/lib/utils';
 import { useBeneficiaries } from '@/hooks/useBeneficiaries';
 import { useWallets } from '@/hooks/useWallets';
-import type { Beneficiary, CreateTransferRequest } from '@/api/types';
+import type { Beneficiary, CreateTransferRequest, Wallet } from '@/api/types';
 import { Search, User, AlertTriangle } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -57,7 +57,7 @@ export function TransferForm({
   const amount = watch('amount');
 
   // Get KES wallet balance
-  const kesWallet = wallets?.find((w: any) => w.currency === 'KES');
+  const kesWallet = wallets?.find((w: Wallet) => w.currency === 'KES');
   const availableBalance = kesWallet?.availableBalance || 0;
 
   // Filter beneficiaries by search

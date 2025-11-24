@@ -8,7 +8,20 @@ export interface ApiErrorResponse {
   success: false;
   error: string;
   statusCode: number;
-  message?: string;
+  message?: string | string[];
+}
+
+/**
+ * Extended error interface for mutation errors with axios response
+ */
+export interface MutationError extends Error {
+  response?: {
+    status: number;
+    data?: {
+      message?: string | string[];
+      error?: string;
+    };
+  };
 }
 
 export class ApiError extends Error {
@@ -32,8 +45,13 @@ export function handleApiError(error: unknown): ApiError {
     const statusCode = error.response.status;
     const data = error.response.data as ApiErrorResponse;
 
+    // Handle message being string or string[]
+    const message = data.message
+      ? (Array.isArray(data.message) ? data.message.join(', ') : data.message)
+      : undefined;
+
     return new ApiError(
-      data.error || data.message || error.message || 'An error occurred',
+      data.error || message || error.message || 'An error occurred',
       statusCode,
       data
     );

@@ -2,6 +2,7 @@ import { Modal } from '@/components/ui/modal';
 import { TransferForm } from './TransferForm';
 import { useInitiateTransfer } from '@/hooks/useTransfers';
 import type { CreateTransferRequest } from '@/api/types';
+import type { MutationError } from '@/api/errors';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -34,8 +35,8 @@ export function TransferModal({
   };
 
   // Extract error message from mutation error
-  const getErrorMessage = () => {
-    const error = initiateTransfer.error as any;
+  const getErrorMessage = (): string | null => {
+    const error = initiateTransfer.error as MutationError | null;
     if (!error) return null;
 
     const status = error?.response?.status;
@@ -46,13 +47,16 @@ export function TransferModal({
       if (Array.isArray(message)) {
         return message.join(', ');
       }
-      if (message?.includes('Insufficient')) {
-        return 'Insufficient wallet balance. Please deposit funds first.';
+      if (typeof message === 'string') {
+        if (message.includes('Insufficient')) {
+          return 'Insufficient wallet balance. Please deposit funds first.';
+        }
+        if (message.includes('liquidity')) {
+          return 'Insufficient USDT liquidity. Please try again later.';
+        }
+        return message;
       }
-      if (message?.includes('liquidity')) {
-        return 'Insufficient USDT liquidity. Please try again later.';
-      }
-      return message || 'Invalid request. Please check your inputs.';
+      return 'Invalid request. Please check your inputs.';
     }
     if (status === 403) {
       return 'Business verification required or access denied.';
@@ -60,7 +64,7 @@ export function TransferModal({
     if (status === 404) {
       return 'Beneficiary not found or inactive.';
     }
-    return data?.message || error?.message || 'Failed to initiate transfer';
+    return (typeof data?.message === 'string' ? data.message : null) || error?.message || 'Failed to initiate transfer';
   };
 
   return (

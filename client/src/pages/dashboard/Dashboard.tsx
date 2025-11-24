@@ -8,6 +8,7 @@ import { WalletOverview } from '@/components/dashboard/WalletOverview';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { ExchangeRateWidget } from '@/components/dashboard/ExchangeRateWidget';
 import { QuickActions } from '@/components/dashboard/QuickActions';
+import type { Wallet, Transfer } from '@/api/types';
 
 export default function Dashboard() {
   const { user, business } = useAuthStore();
@@ -17,7 +18,7 @@ export default function Dashboard() {
 
   // Calculate total balance in KES from all wallets
   const totalBalance = useMemo(() => {
-    return wallets?.reduce((sum: number, wallet: any) => {
+    return wallets?.reduce((sum: number, wallet: Wallet) => {
       if (wallet.currency === 'KES') {
         return sum + wallet.totalBalance;
       } else if (wallet.currency === 'USD' || wallet.currency === 'USDT') {
@@ -35,13 +36,13 @@ export default function Dashboard() {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const monthlyTransfers = transfers.filter((transfer: any) =>
+    const monthlyTransfers = transfers.filter((transfer: Transfer) =>
       new Date(transfer.createdAt) >= firstDayOfMonth
     );
 
     // Sum up kesAmount from all transfers (amount sent in KES)
-    return monthlyTransfers.reduce((sum: number, transfer: any) => {
-      const kesAmount = parseFloat(transfer.kesAmount) || 0;
+    return monthlyTransfers.reduce((sum: number, transfer: Transfer) => {
+      const kesAmount = transfer.kesAmount || 0;
       return sum + kesAmount;
     }, 0);
   }, [transfers]);
@@ -62,7 +63,7 @@ export default function Dashboard() {
   const isLoading = walletsLoading || transfersLoading || beneficiariesLoading;
 
   // Transform wallets for WalletOverview component
-  const walletOverviewData = wallets?.map((wallet: any) => {
+  const walletOverviewData = wallets?.map((wallet: Wallet) => {
     const currencyConfig: Record<string, { symbol: string; color: string; bgColor: string }> = {
       KES: { symbol: 'KSh', color: 'text-primary-600', bgColor: 'bg-gradient-to-br from-primary-50 to-primary-100' },
       USD: { symbol: '$', color: 'text-green-600', bgColor: 'bg-gradient-to-br from-green-50 to-green-100' },

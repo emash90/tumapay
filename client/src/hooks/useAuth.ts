@@ -13,6 +13,7 @@ import type {
   ForgotPasswordRequest,
   ResetPasswordRequest,
   VerifyEmailRequest,
+  SignInResponse,
 } from '@/api/types';
 
 /**
@@ -25,12 +26,12 @@ export function useSignIn() {
 
   return useMutation({
     mutationFn: (credentials: SignInRequest) => authService.signIn(credentials),
-    onSuccess: (response: any) => {
+    onSuccess: (response: SignInResponse) => {
       const { accessToken, user, business } = response;
 
       // Store access token and user in auth store
       setAccessToken(accessToken);
-      setUser(user, business);
+      setUser(user, business ?? null);
 
       // Navigate to dashboard
       navigate('/dashboard');
@@ -161,10 +162,10 @@ export function useRefreshToken() {
   return useMutation({
     mutationFn: () => authService.refresh(),
     retry: false, // Don't retry on failure - redirect to login instead
-    onSuccess: (response: any) => {
+    onSuccess: (response: SignInResponse) => {
       const { accessToken, user, business } = response;
       setAccessToken(accessToken);
-      setUser(user, business);
+      setUser(user, business ?? null);
     },
   });
 }

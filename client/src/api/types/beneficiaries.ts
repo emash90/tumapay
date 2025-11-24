@@ -17,7 +17,7 @@ export interface Beneficiary extends BaseEntity {
   bankCode: string | null;
   phone: string | null;
   email: string | null;
-  additionalDetails: Record<string, any> | null;
+  additionalDetails: Record<string, unknown> | null;
   isVerified: boolean;
   isActive: boolean;
 }
@@ -35,7 +35,7 @@ export interface CreateBeneficiaryRequest {
   bankCode?: string;
   phone?: string;
   email?: string;
-  additionalDetails?: Record<string, any>;
+  additionalDetails?: Record<string, unknown>;
 }
 
 // Update beneficiary request
@@ -45,7 +45,7 @@ export interface UpdateBeneficiaryRequest {
   bankCode?: string;
   phone?: string;
   email?: string;
-  additionalDetails?: Record<string, any>;
+  additionalDetails?: Record<string, unknown>;
   // Note: iban and nationalId cannot be updated after creation
 }
 

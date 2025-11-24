@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Users, AlertCircle, Plus, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { Beneficiary } from '@/api/types';
+import type { MutationError } from '@/api/errors';
 
 export default function Beneficiaries() {
   const location = useLocation();
@@ -189,8 +190,11 @@ export default function Beneficiaries() {
             {deleteBeneficiary.isError && (
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>
-                  {(deleteBeneficiary.error as any)?.response?.data?.message ||
-                    'Failed to delete beneficiary'}
+                  {(() => {
+                    const error = deleteBeneficiary.error as MutationError;
+                    const message = error?.response?.data?.message;
+                    return (typeof message === 'string' ? message : null) || 'Failed to delete beneficiary';
+                  })()}
                 </AlertDescription>
               </Alert>
             )}

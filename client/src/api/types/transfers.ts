@@ -53,7 +53,7 @@ export interface TransferTimelineEvent {
   status: 'success' | 'failed' | 'pending';
   message?: string;
   timestamp: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // ==================== Request Types ====================

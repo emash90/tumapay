@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useDepositMpesa } from '@/hooks/useWallets';
 import { CheckCircle2 } from 'lucide-react';
 import type { Wallet } from '@/api/types';
+import type { MutationError } from '@/api/errors';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -141,7 +142,7 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
             <Alert variant="destructive">
               <AlertDescription>
                 {(() => {
-                  const error = depositMpesa.error as any;
+                  const error = depositMpesa.error as MutationError;
                   const status = error?.response?.status;
                   const data = error?.response?.data;
 
