@@ -84,6 +84,7 @@ export const API_ENDPOINTS = {
 
   // Transactions
   TRANSACTIONS: {
+    LIST: '/transactions',
     CREATE: '/transactions',
     GET: (id: string) => `/transactions/${id}`,
   },

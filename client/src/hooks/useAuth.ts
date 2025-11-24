@@ -160,6 +160,7 @@ export function useRefreshToken() {
 
   return useMutation({
     mutationFn: () => authService.refresh(),
+    retry: false, // Don't retry on failure - redirect to login instead
     onSuccess: (response: any) => {
       const { accessToken, user, business } = response;
       setAccessToken(accessToken);

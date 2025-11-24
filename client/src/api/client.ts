@@ -97,7 +97,9 @@ apiClient.interceptors.response.use(
     const apiError = handleApiError(error);
 
     // Handle authentication errors (token expired/invalid)
-    if (isAuthError(apiError) && !originalRequest._retry) {
+    // Skip auto-refresh for the refresh endpoint itself to prevent infinite loop
+    const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
+    if (isAuthError(apiError) && !originalRequest._retry && !isRefreshEndpoint) {
       if (isRefreshing) {
         // If already refreshing, queue this request
         return new Promise((resolve, reject) => {

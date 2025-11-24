@@ -116,3 +116,11 @@ export type {
   ExecuteConversionResponse,
   ConversionHistoryResponse,
 } from './conversion';
+
+// Transaction types
+export type {
+  Transaction,
+  TransactionListParams,
+  TransactionResponse,
+  TransactionsListResponse,
+} from './transactions';

@@ -11,6 +11,7 @@ import Dashboard from '@/pages/dashboard/Dashboard';
 import Wallets from '@/pages/dashboard/Wallets';
 import Beneficiaries from '@/pages/dashboard/Beneficiaries';
 import Transfers from '@/pages/dashboard/Transfers';
+import TransactionHistory from '@/pages/dashboard/TransactionHistory';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -34,14 +35,6 @@ function ExchangeRatesPage() {
   );
 }
 
-function HistoryPage() {
-  return (
-    <div className="p-6 bg-white rounded-xl border border-gray-200">
-      <h1 className="text-2xl font-bold text-gray-900">Transaction History</h1>
-      <p className="text-gray-500 mt-2">View all your past transactions</p>
-    </div>
-  );
-}
 
 function SettingsPage() {
   return (
@@ -131,7 +124,7 @@ function App() {
             <Route path="/beneficiaries" element={<Beneficiaries />} />
             <Route path="/beneficiaries/new" element={<Beneficiaries />} />
             <Route path="/exchange-rates" element={<ExchangeRatesPage />} />
-            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/history" element={<TransactionHistory />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/support" element={<SupportPage />} />
