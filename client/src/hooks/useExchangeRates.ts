@@ -31,11 +31,7 @@ const SUPPORTED_CURRENCIES = ['KES', 'USD', 'USDT', 'TRY'];
 export function useExchangeRates() {
   return useQuery({
     queryKey: exchangeRateKeys.rates(),
-    queryFn: async () => {
-      const response = await exchangeRateService.getAllRates();
-      console.log('Raw API response:', response);
-      return response;
-    },
+    queryFn: () => exchangeRateService.getAllRates(),
     select: (data: any) => {
       // API returns flat object: { USD: 1, KES: 129.524, TRY: 42.4591, ... }
       // All rates are relative to USD (base currency)
@@ -80,7 +76,6 @@ export function useExchangeRates() {
           }
         }
 
-        console.log('Transformed rates:', rates);
         return {
           rates,
           lastUpdated: new Date().toISOString(),
@@ -89,7 +84,6 @@ export function useExchangeRates() {
 
       // Handle expected format: { rates: [...], lastUpdated: '...' }
       const ratesArray = Array.isArray(data) ? data : (data?.rates ?? []);
-      console.log('Extracted rates:', ratesArray);
       return {
         rates: ratesArray.map((rate: ExchangeRate): TransformedExchangeRate => ({
           ...rate,

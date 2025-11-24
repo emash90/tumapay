@@ -42,9 +42,6 @@ export default function ExchangeRatesPage() {
   const [toCurrency, setToCurrency] = useState<Currency>('TRY');
   const [amount, setAmount] = useState<string>('1000');
 
-  // Debug: log the data
-  console.log('Exchange rates data:', data, 'error:', error);
-
   // Get rate for converter
   const converterRate = useMemo(() => {
     if (!data?.rates) return null;

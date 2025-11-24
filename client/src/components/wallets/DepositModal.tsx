@@ -118,12 +118,18 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
             <Input
               id="amount"
               type="number"
+              step="1"
               placeholder="1000"
               {...register('amount', {
                 required: 'Amount is required',
                 min: { value: 10, message: 'Minimum amount is KES 10' },
                 max: { value: 150000, message: 'Maximum amount is KES 150,000' },
                 valueAsNumber: true,
+                validate: {
+                  positive: (value) => value > 0 || 'Amount must be greater than 0',
+                  wholeNumber: (value) => Number.isInteger(value) || 'M-Pesa only accepts whole numbers',
+                  notNaN: (value) => !isNaN(value) || 'Please enter a valid amount',
+                },
               })}
             />
             {errors.amount && (

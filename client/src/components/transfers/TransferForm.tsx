@@ -174,12 +174,21 @@ export function TransferForm({
         <Input
           id="amount"
           type="number"
+          step="0.01"
           placeholder="1000"
           {...register('amount', {
             required: 'Amount is required',
             min: { value: 100, message: 'Minimum amount is KES 100' },
-            max: { value: 1000000, message: 'Maximum amount is KES 1,000,000' },
+            max: { value: availableBalance > 0 ? Math.min(availableBalance, 1000000) : 1000000, message: availableBalance > 0 && availableBalance < 1000000 ? `Maximum amount is ${formatCurrency(availableBalance, 'KES')} (your balance)` : 'Maximum amount is KES 1,000,000' },
             valueAsNumber: true,
+            validate: {
+              positive: (value) => value > 0 || 'Amount must be greater than 0',
+              precision: (value) => {
+                const decimals = (value.toString().split('.')[1] || '').length;
+                return decimals <= 2 || 'Amount cannot have more than 2 decimal places';
+              },
+              notNaN: (value) => !isNaN(value) || 'Please enter a valid amount',
+            },
           })}
         />
         {errors.amount && (

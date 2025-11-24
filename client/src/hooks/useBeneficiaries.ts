@@ -49,11 +49,7 @@ export function useBeneficiary(id: string) {
 export function useBeneficiaryStats() {
   return useQuery({
     queryKey: beneficiaryKeys.stats(),
-    queryFn: async () => {
-      const response = await beneficiaryService.getBeneficiaryStats();
-      console.log('Raw beneficiary stats response:', response);
-      return response;
-    },
+    queryFn: () => beneficiaryService.getBeneficiaryStats(),
     select: (data: any) => {
       // Handle different response structures
       if (typeof data === 'number') {

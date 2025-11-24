@@ -14,6 +14,7 @@ import { handleApiError, isAuthError } from './errors';
  * Refresh token stored in httpOnly cookie (managed by backend)
  */
 let accessToken: string | null = null;
+let csrfToken: string | null = null;
 
 export const tokenManager = {
   get: (): string | null => {
@@ -34,6 +35,24 @@ export const tokenManager = {
 };
 
 /**
+ * CSRF Token management
+ * Token is extracted from response headers and included in state-changing requests
+ */
+export const csrfTokenManager = {
+  get: (): string | null => {
+    return csrfToken;
+  },
+
+  set: (token: string): void => {
+    csrfToken = token;
+  },
+
+  remove: (): void => {
+    csrfToken = null;
+  },
+};
+
+/**
  * Create axios instance with base configuration
  */
 const apiClient: AxiosInstance = axios.create({
@@ -46,7 +65,7 @@ const apiClient: AxiosInstance = axios.create({
 });
 
 /**
- * Request interceptor - Add authentication token
+ * Request interceptor - Add authentication token and CSRF token
  */
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -54,6 +73,12 @@ apiClient.interceptors.request.use(
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Add CSRF token for state-changing requests
+    const csrf = csrfTokenManager.get();
+    if (csrf && config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+      config.headers['X-CSRF-Token'] = csrf;
     }
 
     return config;
@@ -89,6 +114,12 @@ const processQueue = (error: any = null) => {
  */
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    // Extract CSRF token from response headers if present
+    const newCsrfToken = response.headers['x-csrf-token'];
+    if (newCsrfToken) {
+      csrfTokenManager.set(newCsrfToken);
+    }
+
     // Return the data directly for successful responses
     return response;
   },

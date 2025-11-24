@@ -155,12 +155,18 @@ export function WithdrawModal({ isOpen, onClose, wallet }: WithdrawModalProps) {
                     <Input
                       id="amount"
                       type="number"
+                      step="1"
                       placeholder="1000"
                       {...mpesaForm.register('amount', {
                         required: 'Amount is required',
                         min: { value: 10, message: 'Minimum amount is KES 10' },
                         max: { value: wallet.availableBalance, message: 'Insufficient balance' },
                         valueAsNumber: true,
+                        validate: {
+                          positive: (value) => value > 0 || 'Amount must be greater than 0',
+                          wholeNumber: (value) => Number.isInteger(value) || 'M-Pesa only accepts whole numbers',
+                          notNaN: (value) => !isNaN(value) || 'Please enter a valid amount',
+                        },
                       })}
                     />
                     {mpesaForm.formState.errors.amount && (
@@ -227,6 +233,14 @@ export function WithdrawModal({ isOpen, onClose, wallet }: WithdrawModalProps) {
                         min: { value: 10, message: 'Minimum amount is 10 USDT' },
                         max: { value: wallet.availableBalance, message: 'Insufficient balance' },
                         valueAsNumber: true,
+                        validate: {
+                          positive: (value) => value > 0 || 'Amount must be greater than 0',
+                          precision: (value) => {
+                            const decimals = (value.toString().split('.')[1] || '').length;
+                            return decimals <= 2 || 'Maximum 2 decimal places allowed';
+                          },
+                          notNaN: (value) => !isNaN(value) || 'Please enter a valid amount',
+                        },
                       })}
                     />
                     {usdtForm.formState.errors.amount && (
