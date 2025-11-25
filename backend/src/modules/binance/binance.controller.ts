@@ -27,7 +27,7 @@ import { User } from '../../database/entities/user.entity';
 @ApiTags('Binance')
 @Controller('binance')
 @UseGuards(AuthGuard, SuperAdminGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('bearer')
 export class BinanceController {
   constructor(private readonly binanceService: BinanceService) {}
 

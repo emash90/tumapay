@@ -8,8 +8,13 @@ import {
   HttpStatus,
   Ip,
   UseGuards,
+  Res,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiCookieAuth } from '@nestjs/swagger';
+import { Request, Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import {
   SignUpDto,
@@ -26,7 +31,10 @@ import { User } from '../../database/entities/user.entity';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) {}
 
   @Public()
   @Post('sign-up')
@@ -52,7 +60,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Sign in with email and password',
-    description: 'Authenticate user and create a new session',
+    description: 'Authenticate user and create a new session. Returns access token in response body and sets refresh token in httpOnly cookie.',
   })
   @ApiResponse({
     status: 200,
@@ -66,9 +74,31 @@ export class AuthController {
     @Body() signInDto: SignInDto,
     @Ip() ipAddress: string,
     @Headers() headers?: Record<string, string>,
+    @Res({ passthrough: true }) response?: Response,
   ) {
     const userAgent = headers?.['user-agent'] || headers?.['User-Agent'] || 'unknown';
-    return this.authService.signIn(signInDto, ipAddress, userAgent);
+    const result = await this.authService.signIn(signInDto, ipAddress, userAgent);
+
+    // Set refresh token in httpOnly cookie
+    if (result.data.refreshToken && response) {
+      const cookieOptions = this.configService.get('jwt.cookie');
+      response.cookie(cookieOptions.name, result.data.refreshToken, {
+        httpOnly: cookieOptions.httpOnly,
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+        maxAge: cookieOptions.maxAge,
+        path: cookieOptions.path,
+      });
+
+      // Remove refresh token from response body (only send access token)
+      const { refreshToken: _, ...dataWithoutRefreshToken } = result.data;
+      return {
+        ...result,
+        data: dataWithoutRefreshToken,
+      };
+    }
+
+    return result;
   }
 
   @Post('sign-out')
@@ -77,7 +107,7 @@ export class AuthController {
   @ApiBearerAuth('bearer')
   @ApiOperation({
     summary: 'Sign out current session',
-    description: 'Invalidate the current user session',
+    description: 'Invalidate the current user session and clear refresh token cookie',
   })
   @ApiResponse({
     status: 200,
@@ -87,9 +117,25 @@ export class AuthController {
     status: 401,
     description: 'Unauthorized',
   })
-  async signOut(@Headers('authorization') authorization: string) {
+  async signOut(
+    @Headers('authorization') authorization: string,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
     const token = authorization?.replace('Bearer ', '');
-    return this.authService.signOut(token);
+    const result = await this.authService.signOut(token);
+
+    // Clear the refresh token cookie
+    if (response) {
+      const cookieName = this.configService.get('jwt.cookie.name') || 'refreshToken';
+      response.clearCookie(cookieName, {
+        httpOnly: true,
+        secure: this.configService.get('jwt.cookie.secure'),
+        sameSite: this.configService.get('jwt.cookie.sameSite'),
+        path: this.configService.get('jwt.cookie.path') || '/',
+      });
+    }
+
+    return result;
   }
 
   @Public()
@@ -145,6 +191,59 @@ export class AuthController {
     return this.authService.resetPassword(resetPasswordDto);
   }
 
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description: 'Get a new access token using the refresh token from httpOnly cookie. Returns new access token and sets new refresh token in cookie (token rotation).',
+  })
+  @ApiCookieAuth('refreshToken')
+  @ApiResponse({
+    status: 200,
+    description: 'Tokens refreshed successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or expired refresh token',
+  })
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
+    const cookieName = this.configService.get('jwt.cookie.name') || 'refreshToken';
+    const refreshToken = request.cookies?.[cookieName];
+
+    if (!refreshToken) {
+      throw new UnauthorizedException(
+        'Refresh token not found in cookies. Please sign in again.'
+      );
+    }
+
+    const result = await this.authService.refreshTokens(refreshToken);
+
+    // Set new refresh token in httpOnly cookie (token rotation)
+    if (result.data.refreshToken && response) {
+      const cookieOptions = this.configService.get('jwt.cookie');
+      response.cookie(cookieOptions.name, result.data.refreshToken, {
+        httpOnly: cookieOptions.httpOnly,
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+        maxAge: cookieOptions.maxAge,
+        path: cookieOptions.path,
+      });
+
+      // Remove refresh token from response body (only send access token)
+      const { refreshToken: _, ...dataWithoutRefreshToken } = result.data;
+      return {
+        ...result,
+        data: dataWithoutRefreshToken,
+      };
+    }
+
+    return result;
+  }
+
   @Get('session')
   @UseGuards(AuthGuard)
   @ApiBearerAuth('bearer')
@@ -160,9 +259,33 @@ export class AuthController {
     status: 401,
     description: 'Unauthorized',
   })
-  async getSession(@Headers('authorization') authorization: string) {
-    const token = authorization?.replace('Bearer ', '');
-    return this.authService.getSession(token);
+  async getSession(
+    @CurrentUser() user: User,
+    @Req() request: Request,
+  ) {
+    // For JWT auth, we don't have a traditional session object
+    // Return user info and auth type
+    const authType = (request as any).authType || 'jwt';
+    const session = (request as any).session;
+
+    return {
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          emailVerified: user.emailVerified,
+          isActive: user.isActive,
+        },
+        session: session ? {
+          expiresAt: session.expiresAt,
+          createdAt: session.createdAt,
+        } : null,
+        authType,
+      },
+    };
   }
 
   @Get('me')

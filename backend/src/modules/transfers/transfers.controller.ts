@@ -34,7 +34,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
  * Business isolation enforced - users can only access their own business's transfers
  */
 @ApiTags('Transfers')
-@ApiBearerAuth()
+@ApiBearerAuth('bearer')
 @UseGuards(AuthGuard)
 @Controller('transfers')
 export class TransfersController {
@@ -78,8 +78,12 @@ export class TransfersController {
     @CurrentUser('businessId') businessId: string,
     @CurrentUser('id') userId: string,
     @Body() dto: CreateTransferDto,
-  ): Promise<TransferResponseDto> {
-    return await this.transfersService.initiateTransfer(businessId, userId, dto);
+  ): Promise<{ success: boolean; data: { transfer: TransferResponseDto } }> {
+    const transfer = await this.transfersService.initiateTransfer(businessId, userId, dto);
+    return {
+      success: true,
+      data: { transfer },
+    };
   }
 
   /**
@@ -111,8 +115,12 @@ export class TransfersController {
   async getTransferStatus(
     @CurrentUser('businessId') businessId: string,
     @Param('transactionId') transactionId: string,
-  ): Promise<TransferResponseDto> {
-    return await this.transfersService.getTransferStatus(transactionId, businessId);
+  ): Promise<{ success: boolean; data: { transfer: TransferResponseDto } }> {
+    const transfer = await this.transfersService.getTransferStatus(transactionId, businessId);
+    return {
+      success: true,
+      data: { transfer },
+    };
   }
 
   /**
@@ -146,8 +154,12 @@ export class TransfersController {
   async getTransferTimeline(
     @CurrentUser('businessId') businessId: string,
     @Param('transactionId') transactionId: string,
-  ): Promise<TransferTimelineDto[]> {
-    return await this.transferTimelineService.getTimeline(transactionId, businessId);
+  ): Promise<{ success: boolean; data: { timeline: TransferTimelineDto[] } }> {
+    const timeline = await this.transferTimelineService.getTimeline(transactionId, businessId);
+    return {
+      success: true,
+      data: { timeline },
+    };
   }
 
   /**
@@ -168,7 +180,11 @@ export class TransfersController {
   async listTransfers(
     @CurrentUser('businessId') businessId: string,
     @Query() query: TransferQueryDto,
-  ): Promise<TransferResponseDto[]> {
-    return await this.transfersService.findByBusinessId(businessId, query);
+  ): Promise<{ success: boolean; data: { transfers: TransferResponseDto[] } }> {
+    const transfers = await this.transfersService.findByBusinessId(businessId, query);
+    return {
+      success: true,
+      data: { transfers },
+    };
   }
 }

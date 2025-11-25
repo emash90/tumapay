@@ -1,0 +1,158 @@
+import { useState, useRef, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
+import { Wallet, Plus, ArrowUpRight, MoreVertical, History, Ban, Power } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import type { Wallet as WalletType } from '@/api/types';
+
+interface WalletCardProps {
+  wallet: WalletType;
+  onDeposit: (wallet: WalletType) => void;
+  onWithdraw: (wallet: WalletType) => void;
+  onViewHistory: (wallet: WalletType) => void;
+  onDeactivate?: (wallet: WalletType) => void;
+}
+
+const currencyConfig: Record<string, { color: string; bgColor: string; symbol: string }> = {
+  KES: { color: 'text-primary-600', bgColor: 'bg-primary-100', symbol: 'KSh' },
+  USD: { color: 'text-green-600', bgColor: 'bg-green-100', symbol: '$' },
+  USDT: { color: 'text-secondary-600', bgColor: 'bg-secondary-100', symbol: '₮' },
+  TRY: { color: 'text-accent-600', bgColor: 'bg-accent-100', symbol: '₺' },
+};
+
+export function WalletCard({ wallet, onDeposit, onWithdraw, onViewHistory, onDeactivate }: WalletCardProps) {
+  const config = currencyConfig[wallet.currency] || currencyConfig.USD;
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+      {/* Header */}
+      <div className="p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={cn('p-2.5 rounded-lg', config.bgColor)}>
+              <Wallet className={cn('h-5 w-5', config.color)} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">{wallet.currency} Wallet</h3>
+              <p className="text-xs text-gray-500">
+                {wallet.isActive ? 'Active' : 'Inactive'}
+              </p>
+            </div>
+          </div>
+
+          {/* Dropdown Menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+
+            {showMenu && (
+              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                <button
+                  onClick={() => {
+                    onViewHistory(wallet);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  <History className="h-4 w-4" />
+                  View History
+                </button>
+                {wallet.isActive ? (
+                  <button
+                    onClick={() => {
+                      onDeactivate?.(wallet);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                  >
+                    <Ban className="h-4 w-4" />
+                    Deactivate Wallet
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      // TODO: Implement activate wallet
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                  >
+                    <Power className="h-4 w-4" />
+                    Activate Wallet
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Balance */}
+      <div className="p-6">
+        <div className="mb-4">
+          <p className="text-sm text-gray-500 mb-1">Available Balance</p>
+          <p className={cn('text-2xl font-bold', config.color)}>
+            {formatCurrency(wallet.availableBalance, wallet.currency)}
+          </p>
+        </div>
+
+        {wallet.pendingBalance > 0 && (
+          <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-100">
+            <p className="text-xs text-yellow-700">
+              Pending: {formatCurrency(wallet.pendingBalance, wallet.currency)}
+            </p>
+          </div>
+        )}
+
+        <div className="text-xs text-gray-500">
+          Total: {formatCurrency(wallet.totalBalance, wallet.currency)}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="p-4 border-t border-gray-100 flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 gap-2"
+          onClick={() => onDeposit(wallet)}
+        >
+          <Plus className="h-4 w-4" />
+          Deposit
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 gap-2"
+          onClick={() => onWithdraw(wallet)}
+          disabled={wallet.availableBalance <= 0}
+        >
+          <ArrowUpRight className="h-4 w-4" />
+          Withdraw
+        </Button>
+      </div>
+    </div>
+  );
+}
