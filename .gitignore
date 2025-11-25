@@ -34,9 +34,6 @@ Thumbs.db
 *.swo
 *~
 
-# Documentation files (markdown)
-*.md
-
 # Testing
 coverage/
 .nyc_output/
