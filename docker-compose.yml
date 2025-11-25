@@ -102,8 +102,14 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      - PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=False
+      - PGADMIN_CONFIG_WTF_CSRF_CHECK_DEFAULT=False
+      - PGADMIN_CONFIG_WTF_CSRF_TIME_LIMIT=None
     ports:
       - '5050:80'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
     networks:
       - tumapay_network
     depends_on:
@@ -113,6 +119,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  pgadmin_data:
     driver: local
 
 networks:

@@ -44,8 +44,16 @@ export function useWallets() {
   return useQuery({
     queryKey: walletKeys.list(),
     queryFn: async () => {
-      const response = await walletService.getWallets();
-      return response.data;
+      // The get utility returns the extracted data: { wallets: [...] }
+      const data = await walletService.getWallets();
+
+      // Handle case where data might be undefined or null
+      if (!data) {
+        console.error('Wallets data is undefined/null');
+        return { wallets: [] };
+      }
+
+      return data;
     },
     select: (data: WalletsListResponse | { wallets: RawWallet[] }) => {
       // The get utility already extracts response.data.data, so data is { wallets: [...] }

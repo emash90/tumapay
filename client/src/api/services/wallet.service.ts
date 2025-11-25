@@ -30,8 +30,8 @@ export const walletService = {
   /**
    * Get all wallets for the business
    */
-  async getWallets(): Promise<ApiResponse<WalletsListResponse>> {
-    return get<ApiResponse<WalletsListResponse>>(API_ENDPOINTS.WALLETS.LIST);
+  async getWallets(): Promise<WalletsListResponse> {
+    return get<WalletsListResponse>(API_ENDPOINTS.WALLETS.LIST);
   },
 
   /**
