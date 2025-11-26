@@ -28,6 +28,7 @@ export const API_ENDPOINTS = {
     VERIFY_EMAIL: '/auth/verify-email',
     FORGOT_PASSWORD: '/auth/forgot-password',
     RESET_PASSWORD: '/auth/reset-password',
+    CHANGE_PASSWORD: '/auth/change-password',
     SESSION: '/auth/session',
     ME: '/auth/me',
     SESSIONS: '/auth/sessions',

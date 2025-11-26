@@ -103,6 +103,12 @@ export interface ResetPasswordRequest {
   newPassword: string;
 }
 
+// Change password request
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 // ==================== Response Types ====================
 
 // Sign up response
@@ -161,5 +167,10 @@ export interface ForgotPasswordResponse {
 
 // Reset password response
 export interface ResetPasswordResponse {
+  message: string;
+}
+
+// Change password response
+export interface ChangePasswordResponse {
   message: string;
 }

@@ -16,6 +16,8 @@ import type {
   ForgotPasswordResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
+  ChangePasswordRequest,
+  ChangePasswordResponse,
   SessionResponse,
   UserProfileResponse,
   SessionsListResponse,
@@ -84,6 +86,16 @@ export const authService = {
   async resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
     return post<ResetPasswordResponse, ResetPasswordRequest>(
       API_ENDPOINTS.AUTH.RESET_PASSWORD,
+      data
+    );
+  },
+
+  /**
+   * Change password for authenticated user
+   */
+  async changePassword(data: ChangePasswordRequest): Promise<ChangePasswordResponse> {
+    return post<ChangePasswordResponse, ChangePasswordRequest>(
+      API_ENDPOINTS.AUTH.CHANGE_PASSWORD,
       data
     );
   },

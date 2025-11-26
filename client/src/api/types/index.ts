@@ -28,6 +28,7 @@ export type {
   VerifyEmailRequest,
   ForgotPasswordRequest,
   ResetPasswordRequest,
+  ChangePasswordRequest,
   SignUpResponse,
   SignInResponse,
   SessionResponse,
@@ -38,6 +39,7 @@ export type {
   VerifyEmailResponse,
   ForgotPasswordResponse,
   ResetPasswordResponse,
+  ChangePasswordResponse,
 } from './auth';
 
 // Business types

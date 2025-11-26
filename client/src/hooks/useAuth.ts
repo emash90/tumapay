@@ -12,6 +12,7 @@ import type {
   SignUpRequest,
   ForgotPasswordRequest,
   ResetPasswordRequest,
+  ChangePasswordRequest,
   VerifyEmailRequest,
   SignInResponse,
 } from '@/api/types';
@@ -149,6 +150,16 @@ export function useVerifyEmail() {
         state: { message: 'Email verified successfully! You can now sign in.' },
       });
     },
+  });
+}
+
+/**
+ * Change Password Hook
+ * Changes password for authenticated user
+ */
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (data: ChangePasswordRequest) => authService.changePassword(data),
   });
 }
 

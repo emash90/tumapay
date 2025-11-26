@@ -13,6 +13,7 @@ import Beneficiaries from '@/pages/dashboard/Beneficiaries';
 import Transfers from '@/pages/dashboard/Transfers';
 import TransactionHistory from '@/pages/dashboard/TransactionHistory';
 import ExchangeRates from '@/pages/dashboard/ExchangeRates';
+import Settings from '@/pages/dashboard/Settings';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -26,15 +27,6 @@ const queryClient = new QueryClient({
 });
 
 // Placeholder pages for dashboard sub-routes
-
-function SettingsPage() {
-  return (
-    <div className="p-6 bg-white rounded-xl border border-gray-200">
-      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-      <p className="text-gray-500 mt-2">Manage your account settings</p>
-    </div>
-  );
-}
 
 function ProfilePage() {
   return (
@@ -116,7 +108,7 @@ function App() {
             <Route path="/beneficiaries/new" element={<Beneficiaries />} />
             <Route path="/exchange-rates" element={<ExchangeRates />} />
             <Route path="/history" element={<TransactionHistory />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/support" element={<SupportPage />} />
           </Route>
