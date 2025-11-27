@@ -13,7 +13,7 @@ import * as crypto from 'crypto';
 import { User } from '../../database/entities/user.entity';
 import { Account } from '../../database/entities/account.entity';
 import { Verification, VerificationType } from '../../database/entities/verification.entity';
-import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto } from './dto';
+import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto, ChangePasswordDto } from './dto';
 import { SessionService } from './session.service';
 import { BusinessService } from '../business/business.service';
 import type { JwtPayload } from './strategies/jwt.strategy';
@@ -351,6 +351,58 @@ export class AuthService {
     return {
       success: true,
       message: 'Password reset successfully. Please sign in with your new password.',
+    };
+  }
+
+  /**
+   * Change password for authenticated user
+   */
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+    const { currentPassword, newPassword } = changePasswordDto;
+
+    // Find user
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Find account
+    const account = await this.accountRepository.findOne({
+      where: { userId: user.id, providerId: 'email' },
+    });
+
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    // Verify current password
+    const isPasswordValid = await this.verifyPassword(currentPassword, account.password);
+
+    if (!isPasswordValid) {
+      throw new BadRequestException('The current password you entered is incorrect. Please try again.');
+    }
+
+    // Check if new password is different from current
+    const isSamePassword = await this.verifyPassword(newPassword, account.password);
+
+    if (isSamePassword) {
+      throw new BadRequestException('New password must be different from current password');
+    }
+
+    // Hash new password and update
+    const hashedPassword = await this.hashPassword(newPassword);
+    await this.accountRepository.update(account.id, {
+      password: hashedPassword,
+    });
+
+    return {
+      success: true,
+      data: {
+        message: 'Password changed successfully',
+      },
     };
   }
 

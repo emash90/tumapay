@@ -51,7 +51,7 @@ export function handleApiError(error: unknown): ApiError {
       : undefined;
 
     return new ApiError(
-      data.error || message || error.message || 'An error occurred',
+      message || data.error || error.message || 'An error occurred',
       statusCode,
       data
     );
