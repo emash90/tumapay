@@ -16,6 +16,7 @@ import { Verification, VerificationType } from '../../database/entities/verifica
 import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto, ChangePasswordDto } from './dto';
 import { SessionService } from './session.service';
 import { BusinessService } from '../business/business.service';
+import { EmailService } from '../email/email.service';
 import type { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
@@ -29,6 +30,7 @@ export class AuthService {
     @InjectRepository(Verification)
     private verificationRepository: Repository<Verification>,
     private businessService: BusinessService,
+    private emailService: EmailService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -81,12 +83,12 @@ export class AuthService {
       VerificationType.EMAIL_VERIFICATION,
     );
 
-    // TODO: Send verification email
-    console.log(`Verification token for ${email}: ${verificationToken}`);
+    // Send verification email
+    await this.emailService.sendVerificationEmail(email, verificationToken);
 
     return {
       success: true,
-      message: 'User and business registered successfully. Please verify your email.',
+      message: 'User and business registered successfully. Please check your email to verify your account.',
       data: {
         user: this.sanitizeUser(savedUser),
         business: {
@@ -99,7 +101,6 @@ export class AuthService {
           dailyLimit: createdBusiness.dailyLimit,
           monthlyLimit: createdBusiness.monthlyLimit,
         },
-        verificationToken, // Remove this in production
       },
     };
   }
@@ -135,10 +136,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Check if email is verified (optional - you can enforce this)
-    // if (!user.emailVerified) {
-    //   throw new UnauthorizedException('Please verify your email before signing in');
-    // }
+    // Check if email is verified
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Please verify your email before signing in. Check your inbox or request a new verification email.');
+    }
 
     // Create session using SessionService (for backwards compatibility and tracking)
     const session = await this.sessionService.createSession(
@@ -258,6 +259,55 @@ export class AuthService {
   }
 
   /**
+   * Resend verification email
+   */
+  async resendVerificationEmail(email: string) {
+    const user = await this.userRepository.findOne({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return {
+        success: true,
+        message: 'If the email exists and is not verified, a verification link has been sent',
+      };
+    }
+
+    // Check if email is already verified
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Invalidate old verification tokens for this email
+    await this.verificationRepository.update(
+      {
+        identifier: email,
+        type: VerificationType.EMAIL_VERIFICATION,
+        isUsed: false,
+      },
+      {
+        isUsed: true,
+        usedAt: new Date(),
+      },
+    );
+
+    // Generate new verification token
+    const verificationToken = await this.createVerificationToken(
+      email,
+      VerificationType.EMAIL_VERIFICATION,
+    );
+
+    // Send verification email
+    await this.emailService.sendVerificationEmail(email, verificationToken);
+
+    return {
+      success: true,
+      message: 'Verification email has been sent. Please check your inbox.',
+    };
+  }
+
+  /**
    * Forgot password
    */
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
@@ -281,15 +331,12 @@ export class AuthService {
       VerificationType.PASSWORD_RESET,
     );
 
-    // TODO: Send password reset email
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    // Send password reset email
+    await this.emailService.sendPasswordResetEmail(email, resetToken);
 
     return {
       success: true,
       message: 'If the email exists, a password reset link has been sent',
-      data: {
-        resetToken, // Remove this in production
-      },
     };
   }
 

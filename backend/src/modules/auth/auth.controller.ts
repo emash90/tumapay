@@ -11,6 +11,8 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  Query,
+  Redirect,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiCookieAuth } from '@nestjs/swagger';
 import { Request, Response } from 'express';
@@ -20,6 +22,7 @@ import {
   SignUpDto,
   SignInDto,
   VerifyEmailDto,
+  ResendVerificationDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   ChangePasswordDto,
@@ -156,6 +159,47 @@ export class AuthController {
   })
   async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
     return this.authService.verifyEmail(verifyEmailDto.token);
+  }
+
+  @Public()
+  @Get('verify-email-redirect')
+  @ApiOperation({
+    summary: 'Verify email and redirect to frontend',
+    description: 'Verify user email with token from email link and redirect to login page',
+  })
+  async verifyEmailRedirect(
+    @Query('token') token: string,
+    @Res() response: Response,
+  ) {
+    try {
+      await this.authService.verifyEmail(token);
+      // Redirect to frontend login page with success message
+      const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:5173';
+      return response.redirect(`${frontendUrl}/login?verified=true`);
+    } catch (error) {
+      // Redirect to frontend with error
+      const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:5173';
+      return response.redirect(`${frontendUrl}/login?verified=false&error=${encodeURIComponent(error.message)}`);
+    }
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend email verification',
+    description: 'Resend verification email to the user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Verification email sent successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Email is already verified',
+  })
+  async resendVerification(@Body() resendVerificationDto: ResendVerificationDto) {
+    return this.authService.resendVerificationEmail(resendVerificationDto.email);
   }
 
   @Public()

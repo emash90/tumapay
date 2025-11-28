@@ -16,6 +16,7 @@ import { BinanceModule } from './modules/binance/binance.module';
 import { TronModule } from './modules/tron/tron.module';
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { TransfersModule } from './modules/transfers/transfers.module';
     }),
 
     // Feature modules
+    EmailModule,
     AuthModule,
     BusinessModule,
     BeneficiariesModule,
