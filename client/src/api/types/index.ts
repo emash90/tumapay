@@ -134,3 +134,18 @@ export type {
   TransactionResponse,
   TransactionsListResponse,
 } from './transactions';
+
+// Documents types
+export type {
+  DocumentType,
+  DocumentStatus,
+  Document,
+  DocumentRequirement,
+  UploadDocumentRequest,
+  VerifyDocumentRequest,
+  DocumentResponse,
+  DocumentListResponse,
+  BusinessDocumentSummary,
+  DeleteDocumentResponse,
+  ReplaceDocumentResponse,
+} from './documents';

@@ -105,4 +105,15 @@ export const API_ENDPOINTS = {
     EXECUTE: '/conversion/execute',
     HISTORY: '/conversion/history',
   },
+
+  // Documents
+  DOCUMENTS: {
+    UPLOAD: (businessId: string) => `/documents/business/${businessId}`,
+    LIST: (businessId: string) => `/documents/business/${businessId}`,
+    SUMMARY: (businessId: string) => `/documents/business/${businessId}/summary`,
+    GET: (documentId: string) => `/documents/${documentId}`,
+    DELETE: (documentId: string) => `/documents/${documentId}`,
+    REPLACE: (documentId: string) => `/documents/${documentId}/replace`,
+    VERIFY: (documentId: string) => `/documents/${documentId}/verify`,
+  },
 } as const;
