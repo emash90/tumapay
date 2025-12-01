@@ -16,6 +16,9 @@ import { Verification, VerificationType } from '../../database/entities/verifica
 import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto, ChangePasswordDto } from './dto';
 import { SessionService } from './session.service';
 import { BusinessService } from '../business/business.service';
+import { EmailService } from '../email/email.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditEventType } from '../../database/entities/audit-log.entity';
 import type { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
@@ -29,6 +32,8 @@ export class AuthService {
     @InjectRepository(Verification)
     private verificationRepository: Repository<Verification>,
     private businessService: BusinessService,
+    private emailService: EmailService,
+    private auditService: AuditService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -81,12 +86,12 @@ export class AuthService {
       VerificationType.EMAIL_VERIFICATION,
     );
 
-    // TODO: Send verification email
-    console.log(`Verification token for ${email}: ${verificationToken}`);
+    // Send verification email
+    await this.emailService.sendVerificationEmail(email, verificationToken);
 
     return {
       success: true,
-      message: 'User and business registered successfully. Please verify your email.',
+      message: 'User and business registered successfully. Please check your email to verify your account.',
       data: {
         user: this.sanitizeUser(savedUser),
         business: {
@@ -99,7 +104,6 @@ export class AuthService {
           dailyLimit: createdBusiness.dailyLimit,
           monthlyLimit: createdBusiness.monthlyLimit,
         },
-        verificationToken, // Remove this in production
       },
     };
   }
@@ -135,10 +139,47 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Check if email is verified (optional - you can enforce this)
-    // if (!user.emailVerified) {
-    //   throw new UnauthorizedException('Please verify your email before signing in');
-    // }
+    // Check if email is verified
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Please verify your email before signing in. Check your inbox or request a new verification email.');
+    }
+
+    // Check if 2FA is enabled
+    if (user.twoFactorEnabled) {
+      // Generate 6-digit code
+      const code = this.generate2FACode();
+
+      // Store in verification table with 10-minute expiration
+      await this.createVerificationToken(
+        user.email,
+        VerificationType.TWO_FACTOR_AUTH,
+        code,
+        10,
+      );
+
+      // Send email
+      await this.emailService.send2FACodeEmail(user.email, code);
+
+      // Log audit event
+      await this.auditService.log({
+        userId: user.id,
+        email: user.email,
+        eventType: AuditEventType.TWO_FACTOR_CODE_SENT,
+        ipAddress,
+        userAgent,
+        description: '2FA code sent to email',
+        success: true,
+      });
+
+      // Return 2FA required response (NO SESSION YET)
+      return {
+        success: true,
+        requires2FA: true,
+        email: user.email,
+        message: 'Verification code sent to your email',
+        data: null,
+      };
+    }
 
     // Create session using SessionService (for backwards compatibility and tracking)
     const session = await this.sessionService.createSession(
@@ -258,6 +299,55 @@ export class AuthService {
   }
 
   /**
+   * Resend verification email
+   */
+  async resendVerificationEmail(email: string) {
+    const user = await this.userRepository.findOne({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return {
+        success: true,
+        message: 'If the email exists and is not verified, a verification link has been sent',
+      };
+    }
+
+    // Check if email is already verified
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Invalidate old verification tokens for this email
+    await this.verificationRepository.update(
+      {
+        identifier: email,
+        type: VerificationType.EMAIL_VERIFICATION,
+        isUsed: false,
+      },
+      {
+        isUsed: true,
+        usedAt: new Date(),
+      },
+    );
+
+    // Generate new verification token
+    const verificationToken = await this.createVerificationToken(
+      email,
+      VerificationType.EMAIL_VERIFICATION,
+    );
+
+    // Send verification email
+    await this.emailService.sendVerificationEmail(email, verificationToken);
+
+    return {
+      success: true,
+      message: 'Verification email has been sent. Please check your inbox.',
+    };
+  }
+
+  /**
    * Forgot password
    */
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
@@ -268,6 +358,14 @@ export class AuthService {
     });
 
     if (!user) {
+      // Log failed attempt (email not found)
+      await this.auditService.log({
+        email,
+        eventType: AuditEventType.PASSWORD_RESET_REQUESTED,
+        description: 'Password reset requested for non-existent email',
+        success: false,
+      });
+
       // Don't reveal if user exists or not
       return {
         success: true,
@@ -281,15 +379,21 @@ export class AuthService {
       VerificationType.PASSWORD_RESET,
     );
 
-    // TODO: Send password reset email
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    // Send password reset email
+    await this.emailService.sendPasswordResetEmail(email, resetToken);
+
+    // Log successful password reset request
+    await this.auditService.log({
+      userId: user.id,
+      email: user.email,
+      eventType: AuditEventType.PASSWORD_RESET_REQUESTED,
+      description: 'Password reset email sent successfully',
+      success: true,
+    });
 
     return {
       success: true,
       message: 'If the email exists, a password reset link has been sent',
-      data: {
-        resetToken, // Remove this in production
-      },
     };
   }
 
@@ -308,11 +412,31 @@ export class AuthService {
     });
 
     if (!verification) {
+      // Log failed attempt - invalid token
+      await this.auditService.log({
+        eventType: AuditEventType.PASSWORD_RESET_FAILED,
+        description: 'Password reset attempted with invalid token',
+        success: false,
+        metadata: { reason: 'Invalid or already used token' },
+      });
+
       throw new BadRequestException('Invalid or expired reset token');
     }
 
     // Check if token is expired
     if (new Date() > new Date(verification.expiresAt)) {
+      // Log failed attempt - expired token
+      await this.auditService.log({
+        email: verification.identifier,
+        eventType: AuditEventType.PASSWORD_RESET_FAILED,
+        description: 'Password reset attempted with expired token',
+        success: false,
+        metadata: {
+          reason: 'Token expired',
+          expiresAt: verification.expiresAt,
+        },
+      });
+
       throw new BadRequestException('Reset token has expired');
     }
 
@@ -347,6 +471,22 @@ export class AuthService {
 
     // Invalidate all existing sessions for security
     await this.sessionService.invalidateAllUserSessions(user.id);
+
+    // Send confirmation email
+    await this.emailService.sendPasswordResetConfirmationEmail(user.email);
+
+    // Log successful password reset
+    await this.auditService.log({
+      userId: user.id,
+      email: user.email,
+      eventType: AuditEventType.PASSWORD_RESET_COMPLETED,
+      description: 'Password reset completed successfully',
+      success: true,
+      metadata: {
+        sessionsInvalidated: true,
+        confirmationEmailSent: true,
+      },
+    });
 
     return {
       success: true,
@@ -407,6 +547,231 @@ export class AuthService {
   }
 
   /**
+   * Verify 2FA code and complete sign-in
+   */
+  async verify2FACode(
+    email: string,
+    code: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    // Validate code from verification table
+    const verification = await this.verificationRepository.findOne({
+      where: {
+        identifier: email,
+        token: code,
+        type: VerificationType.TWO_FACTOR_AUTH,
+        isUsed: false,
+      },
+    });
+
+    if (!verification) {
+      // Audit failed attempt
+      await this.auditService.log({
+        email,
+        eventType: AuditEventType.TWO_FACTOR_FAILED,
+        success: false,
+        ipAddress,
+        userAgent,
+        metadata: { reason: 'Invalid code' },
+        description: '2FA verification failed - invalid code',
+      });
+      throw new UnauthorizedException('Invalid verification code');
+    }
+
+    // Check if code is expired
+    if (new Date() > new Date(verification.expiresAt)) {
+      await this.auditService.log({
+        email,
+        eventType: AuditEventType.TWO_FACTOR_FAILED,
+        success: false,
+        ipAddress,
+        userAgent,
+        metadata: { reason: 'Expired code', expiresAt: verification.expiresAt },
+        description: '2FA verification failed - expired code',
+      });
+      throw new UnauthorizedException('Verification code has expired');
+    }
+
+    // Mark as used
+    verification.isUsed = true;
+    verification.usedAt = new Date();
+    await this.verificationRepository.save(verification);
+
+    // Get user
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Find account for refresh token storage
+    const account = await this.accountRepository.findOne({
+      where: { userId: user.id, providerId: 'email' },
+    });
+
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    // NOW create session and issue tokens
+    const session = await this.sessionService.createSession(
+      user.id,
+      ipAddress,
+      userAgent,
+    );
+
+    // Generate JWT tokens
+    const accessToken = await this.generateAccessToken(user, session.id);
+    const refreshToken = await this.generateRefreshToken(user, session.id);
+
+    // Calculate refresh token expiry
+    const refreshExpiresIn = this.configService.get<string>('jwt.refreshToken.expiresIn') || '30d';
+    const expiresInMs = this.parseExpiration(refreshExpiresIn);
+    const refreshTokenExpiresAt = new Date(Date.now() + expiresInMs);
+
+    // Store refresh token in account entity
+    account.refreshToken = refreshToken;
+    account.refreshTokenExpiresAt = refreshTokenExpiresAt;
+    await this.accountRepository.save(account);
+
+    // Update last login
+    user.lastLoginAt = new Date();
+    user.lastLoginIp = ipAddress || null;
+    user.lastLoginUserAgent = userAgent || null;
+    const updatedUser = await this.userRepository.save(user);
+
+    // Fetch user's business
+    const business = await this.businessService.getBusinessByUserId(user.id);
+
+    // Audit success
+    await this.auditService.log({
+      userId: user.id,
+      email,
+      eventType: AuditEventType.TWO_FACTOR_SUCCESS,
+      ipAddress,
+      userAgent,
+      description: '2FA verification successful',
+      success: true,
+    });
+
+    return {
+      success: true,
+      message: 'Signed in successfully',
+      data: {
+        accessToken,
+        refreshToken,
+        user: this.sanitizeUser(updatedUser),
+        business: business ? {
+          id: business.id,
+          businessName: business.businessName,
+          registrationNumber: business.registrationNumber,
+          country: business.country,
+          kybStatus: business.kybStatus,
+          tier: business.tier,
+          dailyLimit: business.dailyLimit,
+          monthlyLimit: business.monthlyLimit,
+        } : null,
+        session: {
+          id: session.id,
+          expiresAt: session.expiresAt,
+        },
+      },
+    };
+  }
+
+  /**
+   * Resend 2FA code
+   */
+  async resend2FACode(email: string) {
+    // Find user
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      // Don't reveal if user exists
+      return {
+        success: true,
+        message: 'If the email exists, a new verification code has been sent',
+      };
+    }
+
+    // Check if 2FA is enabled
+    if (!user.twoFactorEnabled) {
+      throw new BadRequestException('2FA is not enabled for this account');
+    }
+
+    // Invalidate old codes (mark as used)
+    await this.verificationRepository.update(
+      {
+        identifier: email,
+        type: VerificationType.TWO_FACTOR_AUTH,
+        isUsed: false,
+      },
+      { isUsed: true, usedAt: new Date() },
+    );
+
+    // Generate new code
+    const code = this.generate2FACode();
+
+    // Store in verification table
+    await this.createVerificationToken(
+      email,
+      VerificationType.TWO_FACTOR_AUTH,
+      code,
+      10,
+    );
+
+    // Send email
+    await this.emailService.send2FACodeEmail(email, code);
+
+    // Audit event
+    await this.auditService.log({
+      userId: user.id,
+      email,
+      eventType: AuditEventType.TWO_FACTOR_CODE_SENT,
+      description: '2FA code resent',
+      success: true,
+    });
+
+    return {
+      success: true,
+      message: 'A new verification code has been sent to your email',
+    };
+  }
+
+  /**
+   * Toggle 2FA for authenticated user
+   */
+  async toggle2FA(userId: string, enabled: boolean) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Update 2FA status
+    user.twoFactorEnabled = enabled;
+    await this.userRepository.save(user);
+
+    // Audit event
+    await this.auditService.log({
+      userId: user.id,
+      email: user.email,
+      eventType: enabled ? AuditEventType.TWO_FACTOR_ENABLED : AuditEventType.TWO_FACTOR_DISABLED,
+      description: enabled ? '2FA enabled' : '2FA disabled',
+      success: true,
+    });
+
+    return {
+      success: true,
+      message: enabled ? '2FA has been enabled' : '2FA has been disabled',
+      data: {
+        twoFactorEnabled: enabled,
+      },
+    };
+  }
+
+  /**
    * Get current user session
    */
   async getSession(token: string) {
@@ -455,10 +820,20 @@ export class AuthService {
   private async createVerificationToken(
     identifier: string,
     type: VerificationType,
+    customToken?: string,
+    expirationMinutes?: number,
   ): Promise<string> {
-    const token = crypto.randomBytes(32).toString('hex');
+    const token = customToken || crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours
+
+    // Use custom expiration or default based on type
+    if (expirationMinutes) {
+      expiresAt.setMinutes(expiresAt.getMinutes() + expirationMinutes);
+    } else if (type === VerificationType.TWO_FACTOR_AUTH) {
+      expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10 minutes for 2FA
+    } else {
+      expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours for others
+    }
 
     const verification = this.verificationRepository.create({
       identifier,
@@ -478,6 +853,13 @@ export class AuthService {
       ...sanitized
     } = user;
     return sanitized;
+  }
+
+  /**
+   * Generate 6-digit 2FA code
+   */
+  private generate2FACode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
   /**

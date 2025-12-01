@@ -14,6 +14,8 @@ import { Session } from '../../database/entities/session.entity';
 import { Verification } from '../../database/entities/verification.entity';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { BusinessModule } from '../business/business.module';
+import { EmailModule } from '../email/email.module';
+import { AuditModule } from '../audit/audit.module';
 import jwtConfig from '../../config/jwt.config';
 
 @Module({
@@ -33,6 +35,8 @@ import jwtConfig from '../../config/jwt.config';
       },
     }),
     ConfigModule.forFeature(jwtConfig),
+    EmailModule,
+    AuditModule,
     forwardRef(() => BusinessModule),
   ],
   controllers: [AuthController, SessionController],

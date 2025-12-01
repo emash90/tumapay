@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert } from '@/components/ui/alert';
+import { PasswordStrengthIndicator } from '@/components/ui/password-strength-indicator';
 
 const resetPasswordSchema = z
   .object({
@@ -34,10 +35,13 @@ export default function ResetPassword() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<ResetPasswordFormData>({
     resolver: zodResolver(resetPasswordSchema),
   });
+
+  const newPassword = watch('newPassword', '');
 
   const onSubmit = (data: ResetPasswordFormData) => {
     if (!token) {
@@ -46,7 +50,7 @@ export default function ResetPassword() {
 
     resetPassword({
       token,
-      newPassword: data.newPassword,
+      password: data.newPassword,
     });
   };
 
@@ -102,9 +106,7 @@ export default function ResetPassword() {
                 error={errors.newPassword?.message}
                 {...register('newPassword')}
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Must be 8+ characters with uppercase, lowercase, and number
-              </p>
+              <PasswordStrengthIndicator password={newPassword} />
             </div>
 
             <div>

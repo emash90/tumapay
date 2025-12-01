@@ -11,8 +11,10 @@ import {
   Res,
   Req,
   UnauthorizedException,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiCookieAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -20,9 +22,13 @@ import {
   SignUpDto,
   SignInDto,
   VerifyEmailDto,
+  ResendVerificationDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   ChangePasswordDto,
+  Verify2FACodeDto,
+  Resend2FACodeDto,
+  Toggle2FADto,
 } from './dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -80,6 +86,11 @@ export class AuthController {
     const userAgent = headers?.['user-agent'] || headers?.['User-Agent'] || 'unknown';
     const result = await this.authService.signIn(signInDto, ipAddress, userAgent);
 
+    // If 2FA is required, return immediately without setting cookies
+    if (result.data === null) {
+      return result;
+    }
+
     // Set refresh token in httpOnly cookie
     if (result.data.refreshToken && response) {
       const cookieOptions = this.configService.get('jwt.cookie');
@@ -100,6 +111,109 @@ export class AuthController {
     }
 
     return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
+  @Post('2fa/verify-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify 2FA code and complete sign-in',
+    description: 'Verify the 6-digit code sent to email and complete the authentication process',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '2FA verified successfully, returns access token',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired verification code',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded',
+  })
+  async verify2FACode(
+    @Body() verify2FACodeDto: Verify2FACodeDto,
+    @Ip() ipAddress: string,
+    @Headers() headers?: Record<string, string>,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
+    const userAgent = headers?.['user-agent'] || headers?.['User-Agent'] || 'unknown';
+    const result = await this.authService.verify2FACode(
+      verify2FACodeDto.email,
+      verify2FACodeDto.code,
+      ipAddress,
+      userAgent,
+    );
+
+    // Set refresh token in httpOnly cookie
+    if (result.data.refreshToken && response) {
+      const cookieOptions = this.configService.get('jwt.cookie');
+      response.cookie(cookieOptions.name, result.data.refreshToken, {
+        httpOnly: cookieOptions.httpOnly,
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+        maxAge: cookieOptions.maxAge,
+        path: cookieOptions.path,
+      });
+
+      // Remove refresh token from response body (only send access token)
+      const { refreshToken: _, ...dataWithoutRefreshToken } = result.data;
+      return {
+        ...result,
+        data: dataWithoutRefreshToken,
+      };
+    }
+
+    return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  @Post('2fa/resend-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend 2FA verification code',
+    description: 'Resend a new 6-digit verification code to the user email',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'New verification code sent successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'User not found or 2FA not enabled',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded',
+  })
+  async resend2FACode(@Body() resend2FACodeDto: Resend2FACodeDto) {
+    return this.authService.resend2FACode(resend2FACodeDto.email);
+  }
+
+  @Post('2fa/toggle')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: 'Enable or disable 2FA',
+    description: 'Toggle two-factor authentication for the current user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '2FA settings updated successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing authentication token',
+  })
+  async toggle2FA(
+    @CurrentUser() user: User,
+    @Body() toggle2FADto: Toggle2FADto,
+  ) {
+    return this.authService.toggle2FA(user.id, toggle2FADto.enabled);
   }
 
   @Post('sign-out')
@@ -159,6 +273,48 @@ export class AuthController {
   }
 
   @Public()
+  @Get('verify-email-redirect')
+  @ApiOperation({
+    summary: 'Verify email and redirect to frontend',
+    description: 'Verify user email with token from email link and redirect to login page',
+  })
+  async verifyEmailRedirect(
+    @Query('token') token: string,
+    @Res() response: Response,
+  ) {
+    try {
+      await this.authService.verifyEmail(token);
+      // Redirect to frontend login page with success message
+      const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:5173';
+      return response.redirect(`${frontendUrl}/login?verified=true`);
+    } catch (error) {
+      // Redirect to frontend with error
+      const frontendUrl = this.configService.get<string>('app.frontendUrl') || 'http://localhost:5173';
+      return response.redirect(`${frontendUrl}/login?verified=false&error=${encodeURIComponent(error.message)}`);
+    }
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend email verification',
+    description: 'Resend verification email to the user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Verification email sent successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Email is already verified',
+  })
+  async resendVerification(@Body() resendVerificationDto: ResendVerificationDto) {
+    return this.authService.resendVerificationEmail(resendVerificationDto.email);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -169,11 +325,16 @@ export class AuthController {
     status: 200,
     description: 'Password reset link sent (if email exists)',
   })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded',
+  })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -187,6 +348,10 @@ export class AuthController {
   @ApiResponse({
     status: 400,
     description: 'Invalid or expired reset token',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded',
   })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);

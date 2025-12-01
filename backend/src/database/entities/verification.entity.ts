@@ -6,6 +6,7 @@ export enum VerificationType {
   PASSWORD_RESET = 'password_reset',
   PHONE_VERIFICATION = 'phone_verification',
   TWO_FACTOR_SETUP = 'two_factor_setup',
+  TWO_FACTOR_AUTH = 'two_factor_auth',
 }
 
 @Entity('verifications')

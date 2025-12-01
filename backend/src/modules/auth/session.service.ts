@@ -9,7 +9,6 @@ import { REDIS_CLIENT } from '../redis/redis.module';
 @Injectable()
 export class SessionService {
   private readonly logger = new Logger(SessionService.name);
-  private readonly SESSION_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
   private readonly CACHE_KEY_PREFIX = 'session:';
 
   constructor(

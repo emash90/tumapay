@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { getDatabaseConfig } from './config/database.config';
@@ -16,6 +17,8 @@ import { BinanceModule } from './modules/binance/binance.module';
 import { TronModule } from './modules/tron/tron.module';
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
+import { EmailModule } from './modules/email/email.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -24,6 +27,14 @@ import { TransfersModule } from './modules/transfers/transfers.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Global rate limiting
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 60 seconds
+        limit: 10, // 10 requests per minute (default)
+      },
+    ]),
 
     // Direct Redis Module
     RedisModule,
@@ -36,6 +47,8 @@ import { TransfersModule } from './modules/transfers/transfers.module';
     }),
 
     // Feature modules
+    EmailModule,
+    AuditModule,
     AuthModule,
     BusinessModule,
     BeneficiariesModule,
