@@ -4,8 +4,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { transactionService } from '@/api/services/transaction.service';
-import type { TransactionListParams } from '@/api/types';
+import { transactionService } from '@/api';
+import type { TransactionListParams } from '@/api';
 
 // Query keys
 export const transactionKeys = {

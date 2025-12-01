@@ -139,6 +139,7 @@ export type {
 export type {
   DocumentType,
   DocumentStatus,
+  BusinessType,
   Document,
   DocumentRequirement,
   UploadDocumentRequest,

@@ -1,4 +1,3 @@
-
 /**
  * Beneficiary Service
  * Handles all beneficiary-related API calls

@@ -4,8 +4,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { exchangeRateService } from '@/api/services/exchange-rate.service';
-import type { Currency, ExchangeRate } from '@/api/types';
+import { exchangeRateService } from '@/api';
+import type { Currency, ExchangeRate } from '@/api';
 
 // Query keys
 export const exchangeRateKeys = {

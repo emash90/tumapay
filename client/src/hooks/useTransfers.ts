@@ -4,8 +4,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { transferService } from '@/api/services/transfer.service';
-import type { CreateTransferRequest, TransferListParams } from '@/api/types';
+import { transferService } from '@/api';
+import type { CreateTransferRequest, TransferListParams } from '@/api';
 
 // Query keys
 export const transferKeys = {
