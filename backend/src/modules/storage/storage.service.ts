@@ -2,20 +2,17 @@ import { Injectable, Inject, Logger, BadRequestException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { UploadApiResponse, UploadApiErrorResponse, v2 as cloudinary } from 'cloudinary';
 import { CLOUDINARY_PROVIDER } from '../../config/cloudinary.config';
+import { IStorageService, UploadResult } from './interfaces/storage.interface';
 import * as streamifier from 'streamifier';
 
-export interface UploadResult {
-  publicId: string;
-  url: string;
-  secureUrl: string;
-  format: string;
-  bytes: number;
-  folder: string;
-}
-
+/**
+ * CloudinaryStorageService
+ * Implementation of IStorageService using Cloudinary
+ * Can be easily replaced with AWS S3 implementation in the future
+ */
 @Injectable()
-export class CloudinaryService {
-  private readonly logger = new Logger(CloudinaryService.name);
+export class StorageService implements IStorageService {
+  private readonly logger = new Logger(StorageService.name);
   private readonly uploadFolder: string;
 
   constructor(
