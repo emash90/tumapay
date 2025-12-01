@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useDepositMpesa } from '@/hooks/useWallets';
-import { CheckCircle2 } from 'lucide-react';
+import { useCurrentUser } from '@/hooks/useAuth';
+import { CheckCircle2, Lock } from 'lucide-react';
 import type { Wallet } from '@/api/types';
 import type { MutationError } from '@/api/errors';
 
@@ -24,14 +25,30 @@ interface MpesaFormData {
 export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
   const [success, setSuccess] = useState(false);
 
+  const { data: currentUserData } = useCurrentUser();
+  const currentUser = currentUserData?.user;
+  const userPhoneNumber = currentUser?.phoneNumber || '';
+
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm<MpesaFormData>();
+    setValue,
+  } = useForm<MpesaFormData>({
+    defaultValues: {
+      phoneNumber: userPhoneNumber,
+    },
+  });
 
   const depositMpesa = useDepositMpesa();
+
+  // Set phone number when user data loads
+  useEffect(() => {
+    if (userPhoneNumber) {
+      setValue('phoneNumber', userPhoneNumber);
+    }
+  }, [userPhoneNumber, setValue]);
 
   const handleClose = () => {
     reset();
@@ -43,9 +60,14 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
     // Allow deposit without wallet (creates new KES wallet) or with KES wallet
     if (wallet && wallet.currency !== 'KES') return;
 
+    // Ensure phone number exists
+    if (!userPhoneNumber) {
+      return;
+    }
+
     try {
       await depositMpesa.mutateAsync({
-        phoneNumber: data.phoneNumber,
+        phoneNumber: userPhoneNumber, // Always use the user's registered phone number
         amount: data.amount,
       });
       setSuccess(true);
@@ -95,23 +117,44 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
             </div>
           </div>
 
+          {/* Warning if no phone number */}
+          {!userPhoneNumber && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                You need to add a phone number to your profile before making M-Pesa deposits. Please update your profile settings.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div>
             <Label htmlFor="phoneNumber">Safaricom Phone Number</Label>
-            <Input
-              id="phoneNumber"
-              placeholder="0712345678"
-              {...register('phoneNumber', {
-                required: 'Phone number is required',
-                pattern: {
-                  value: /^0[17][0-9]{8}$/,
-                  message: 'Enter valid Safaricom number (07XX or 01XX)',
-                },
-              })}
-            />
+            <div className="relative">
+              <Input
+                id="phoneNumber"
+                placeholder="0712345678"
+                readOnly
+                disabled
+                className="pr-10 bg-gray-50 cursor-not-allowed"
+                {...register('phoneNumber', {
+                  required: 'Phone number is required',
+                  pattern: {
+                    value: /^(\+?254|0)?[17][0-9]{8}$/,
+                    message: 'Please enter a valid Kenyan phone number (e.g., 0712345678, 254712345678, or +254712345678)',
+                  },
+                })}
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <Lock className="h-4 w-4 text-gray-400" />
+              </div>
+            </div>
             {errors.phoneNumber && (
               <p className="text-sm text-red-500 mt-1">{errors.phoneNumber.message}</p>
             )}
-            <p className="text-xs text-gray-500 mt-1">Format: 0712345678</p>
+            {userPhoneNumber ? (
+              <p className="text-xs text-gray-500 mt-1">Using your registered phone number</p>
+            ) : (
+              <p className="text-xs text-amber-600 mt-1">No phone number on file. Please update your profile.</p>
+            )}
           </div>
 
           <div>
@@ -167,7 +210,12 @@ export function DepositModal({ isOpen, onClose, wallet }: DepositModalProps) {
             <Button type="button" variant="outline" onClick={handleClose} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" isLoading={depositMpesa.isPending} className="flex-1">
+            <Button
+              type="submit"
+              isLoading={depositMpesa.isPending}
+              disabled={!userPhoneNumber || depositMpesa.isPending}
+              className="flex-1"
+            >
               Deposit
             </Button>
           </div>
