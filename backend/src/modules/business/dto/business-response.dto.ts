@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BusinessKYBStatus, BusinessTier } from '../../../database/entities/business.entity';
+import { BusinessKYBStatus, BusinessTier, BusinessType } from '../../../database/entities/business.entity';
 
 export class BusinessResponseDto {
   @ApiProperty()
@@ -16,6 +16,9 @@ export class BusinessResponseDto {
 
   @ApiProperty()
   country: string;
+
+  @ApiPropertyOptional({ enum: BusinessType })
+  businessType?: BusinessType;
 
   @ApiPropertyOptional()
   industry?: string;

@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsEmail,
+  IsEnum,
   MinLength,
   MaxLength,
   Matches,
@@ -9,6 +10,7 @@ import {
   IsPhoneNumber,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { BusinessType } from '../../../database/entities/business.entity';
 
 export class CreateBusinessDto {
   @ApiProperty({
@@ -28,6 +30,15 @@ export class CreateBusinessDto {
   @MinLength(6, { message: 'Registration number must be at least 6 characters' })
   @MaxLength(255, { message: 'Registration number must not exceed 255 characters' })
   registrationNumber: string;
+
+  @ApiPropertyOptional({
+    enum: BusinessType,
+    example: BusinessType.LIMITED_COMPANY,
+    description: 'Type of business entity (sole_proprietor, limited_company, partnership)',
+  })
+  @IsOptional()
+  @IsEnum(BusinessType, { message: 'Invalid business type' })
+  businessType?: BusinessType;
 
   @ApiPropertyOptional({
     example: 'A123456789X',

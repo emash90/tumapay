@@ -2,11 +2,13 @@ import {
   IsString,
   IsOptional,
   IsEmail,
+  IsEnum,
   MinLength,
   MaxLength,
   IsPhoneNumber,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { BusinessType } from '../../../database/entities/business.entity';
 
 export class UpdateBusinessDto {
   @ApiPropertyOptional({
@@ -18,6 +20,15 @@ export class UpdateBusinessDto {
   @MinLength(2)
   @MaxLength(255)
   businessName?: string;
+
+  @ApiPropertyOptional({
+    enum: BusinessType,
+    example: BusinessType.LIMITED_COMPANY,
+    description: 'Type of business entity (sole_proprietor, limited_company, partnership)',
+  })
+  @IsOptional()
+  @IsEnum(BusinessType, { message: 'Invalid business type' })
+  businessType?: BusinessType;
 
   @ApiPropertyOptional({
     example: 'Technology',
