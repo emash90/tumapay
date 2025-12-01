@@ -14,6 +14,7 @@ export interface User extends BaseEntity {
   isActive: boolean;
   isEmailVerified: boolean;
   isSuperAdmin: boolean;
+  twoFactorEnabled?: boolean;
   lastLoginAt?: string;
   businessId?: string;
   business?: Business;
@@ -109,6 +110,22 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+// Verify 2FA code request
+export interface Verify2FACodeRequest {
+  email: string;
+  code: string;
+}
+
+// Resend 2FA code request
+export interface Resend2FACodeRequest {
+  email: string;
+}
+
+// Toggle 2FA request
+export interface Toggle2FARequest {
+  enabled: boolean;
+}
+
 // ==================== Response Types ====================
 
 // Sign up response
@@ -117,8 +134,8 @@ export interface SignUpResponse {
   message: string;
 }
 
-// Sign in response
-export interface SignInResponse {
+// Sign in response (regular authentication)
+export interface SignInSuccessResponse {
   user: User;
   accessToken: string;
   business?: Business | null;
@@ -127,6 +144,16 @@ export interface SignInResponse {
     expiresAt: string;
   };
 }
+
+// Sign in response (2FA required)
+export interface SignIn2FARequiredResponse {
+  requires2FA: true;
+  email: string;
+  message: string;
+}
+
+// Union type for sign in response
+export type SignInResponse = SignInSuccessResponse | SignIn2FARequiredResponse;
 
 // Session response
 export interface SessionResponse {
@@ -173,4 +200,26 @@ export interface ResetPasswordResponse {
 // Change password response
 export interface ChangePasswordResponse {
   message: string;
+}
+
+// Verify 2FA code response (same as regular sign-in success)
+export interface Verify2FACodeResponse {
+  user: User;
+  accessToken: string;
+  business?: Business | null;
+  session: {
+    id: string;
+    expiresAt: string;
+  };
+}
+
+// Resend 2FA code response
+export interface Resend2FACodeResponse {
+  message: string;
+}
+
+// Toggle 2FA response
+export interface Toggle2FAResponse {
+  message: string;
+  enabled: boolean;
 }

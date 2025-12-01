@@ -29,8 +29,13 @@ export type {
   ForgotPasswordRequest,
   ResetPasswordRequest,
   ChangePasswordRequest,
+  Verify2FACodeRequest,
+  Resend2FACodeRequest,
+  Toggle2FARequest,
   SignUpResponse,
   SignInResponse,
+  SignInSuccessResponse,
+  SignIn2FARequiredResponse,
   SessionResponse,
   UserProfileResponse,
   SessionsListResponse,
@@ -40,6 +45,9 @@ export type {
   ForgotPasswordResponse,
   ResetPasswordResponse,
   ChangePasswordResponse,
+  Verify2FACodeResponse,
+  Resend2FACodeResponse,
+  Toggle2FAResponse,
 } from './auth';
 
 // Business types

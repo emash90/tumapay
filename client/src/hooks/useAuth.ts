@@ -15,11 +15,15 @@ import type {
   ChangePasswordRequest,
   VerifyEmailRequest,
   SignInResponse,
+  Verify2FACodeRequest,
+  Resend2FACodeRequest,
+  Toggle2FARequest,
 } from '@/api/types';
 
 /**
  * Sign In Hook
  * Handles user login with email and password
+ * If 2FA is enabled, navigates to 2FA verification page
  */
 export function useSignIn() {
   const navigate = useNavigate();
@@ -28,14 +32,26 @@ export function useSignIn() {
   return useMutation({
     mutationFn: (credentials: SignInRequest) => authService.signIn(credentials),
     onSuccess: (response: SignInResponse) => {
-      const { accessToken, user, business } = response;
+      // Check if 2FA is required
+      if ('requires2FA' in response && response.requires2FA) {
+        // Navigate to 2FA verification with email in state
+        navigate('/auth/2fa-verify', {
+          state: { email: response.email },
+        });
+        return;
+      }
 
-      // Store access token and user in auth store
-      setAccessToken(accessToken);
-      setUser(user, business ?? null);
+      // Regular sign-in flow (type guard ensures we have the right response type)
+      if ('accessToken' in response) {
+        const { accessToken, user, business } = response;
 
-      // Navigate to dashboard
-      navigate('/dashboard');
+        // Store access token and user in auth store
+        setAccessToken(accessToken);
+        setUser(user, business ?? null);
+
+        // Navigate to dashboard
+        navigate('/dashboard');
+      }
     },
   });
 }
@@ -174,9 +190,57 @@ export function useRefreshToken() {
     mutationFn: () => authService.refresh(),
     retry: false, // Don't retry on failure - redirect to login instead
     onSuccess: (response: SignInResponse) => {
+      // Handle successful refresh (2FA should not be required here)
+      if ('requires2FA' in response) {
+        return;
+      }
+
       const { accessToken, user, business } = response;
       setAccessToken(accessToken);
       setUser(user, business ?? null);
     },
+  });
+}
+
+/**
+ * Verify 2FA Code Hook
+ * Verifies the 6-digit code and completes sign-in
+ */
+export function useVerify2FACode() {
+  const navigate = useNavigate();
+  const { setAccessToken, setUser } = useAuthStore();
+
+  return useMutation({
+    mutationFn: (data: Verify2FACodeRequest) => authService.verify2FACode(data),
+    onSuccess: (response) => {
+      const { accessToken, user, business } = response;
+
+      // Store access token and user in auth store
+      setAccessToken(accessToken);
+      setUser(user, business ?? null);
+
+      // Navigate to dashboard
+      navigate('/dashboard');
+    },
+  });
+}
+
+/**
+ * Resend 2FA Code Hook
+ * Resends the 6-digit verification code to email
+ */
+export function useResend2FACode() {
+  return useMutation({
+    mutationFn: (data: Resend2FACodeRequest) => authService.resend2FACode(data),
+  });
+}
+
+/**
+ * Toggle 2FA Hook
+ * Enables or disables 2FA for the current user
+ */
+export function useToggle2FA() {
+  return useMutation({
+    mutationFn: (data: Toggle2FARequest) => authService.toggle2FA(data),
   });
 }

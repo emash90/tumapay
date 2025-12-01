@@ -12,7 +12,6 @@ import {
   Req,
   UnauthorizedException,
   Query,
-  Redirect,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -27,6 +26,9 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   ChangePasswordDto,
+  Verify2FACodeDto,
+  Resend2FACodeDto,
+  Toggle2FADto,
 } from './dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -84,6 +86,11 @@ export class AuthController {
     const userAgent = headers?.['user-agent'] || headers?.['User-Agent'] || 'unknown';
     const result = await this.authService.signIn(signInDto, ipAddress, userAgent);
 
+    // If 2FA is required, return immediately without setting cookies
+    if (result.data === null) {
+      return result;
+    }
+
     // Set refresh token in httpOnly cookie
     if (result.data.refreshToken && response) {
       const cookieOptions = this.configService.get('jwt.cookie');
@@ -104,6 +111,109 @@ export class AuthController {
     }
 
     return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
+  @Post('2fa/verify-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify 2FA code and complete sign-in',
+    description: 'Verify the 6-digit code sent to email and complete the authentication process',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '2FA verified successfully, returns access token',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired verification code',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded',
+  })
+  async verify2FACode(
+    @Body() verify2FACodeDto: Verify2FACodeDto,
+    @Ip() ipAddress: string,
+    @Headers() headers?: Record<string, string>,
+    @Res({ passthrough: true }) response?: Response,
+  ) {
+    const userAgent = headers?.['user-agent'] || headers?.['User-Agent'] || 'unknown';
+    const result = await this.authService.verify2FACode(
+      verify2FACodeDto.email,
+      verify2FACodeDto.code,
+      ipAddress,
+      userAgent,
+    );
+
+    // Set refresh token in httpOnly cookie
+    if (result.data.refreshToken && response) {
+      const cookieOptions = this.configService.get('jwt.cookie');
+      response.cookie(cookieOptions.name, result.data.refreshToken, {
+        httpOnly: cookieOptions.httpOnly,
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+        maxAge: cookieOptions.maxAge,
+        path: cookieOptions.path,
+      });
+
+      // Remove refresh token from response body (only send access token)
+      const { refreshToken: _, ...dataWithoutRefreshToken } = result.data;
+      return {
+        ...result,
+        data: dataWithoutRefreshToken,
+      };
+    }
+
+    return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  @Post('2fa/resend-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend 2FA verification code',
+    description: 'Resend a new 6-digit verification code to the user email',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'New verification code sent successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'User not found or 2FA not enabled',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded',
+  })
+  async resend2FACode(@Body() resend2FACodeDto: Resend2FACodeDto) {
+    return this.authService.resend2FACode(resend2FACodeDto.email);
+  }
+
+  @Post('2fa/toggle')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({
+    summary: 'Enable or disable 2FA',
+    description: 'Toggle two-factor authentication for the current user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '2FA settings updated successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing authentication token',
+  })
+  async toggle2FA(
+    @CurrentUser() user: User,
+    @Body() toggle2FADto: Toggle2FADto,
+  ) {
+    return this.authService.toggle2FA(user.id, toggle2FADto.enabled);
   }
 
   @Post('sign-out')

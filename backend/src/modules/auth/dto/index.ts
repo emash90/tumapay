@@ -5,3 +5,6 @@ export * from './resend-verification.dto';
 export * from './forgot-password.dto';
 export * from './reset-password.dto';
 export * from './change-password.dto';
+export * from './verify-2fa-code.dto';
+export * from './resend-2fa-code.dto';
+export * from './toggle-2fa.dto';

@@ -7,6 +7,7 @@ import Login from '@/pages/auth/Login';
 import Signup from '@/pages/auth/Signup';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
 import ResetPassword from '@/pages/auth/ResetPassword';
+import TwoFactorVerification from '@/pages/auth/TwoFactorVerification';
 import Dashboard from '@/pages/dashboard/Dashboard';
 import Wallets from '@/pages/dashboard/Wallets';
 import Beneficiaries from '@/pages/dashboard/Beneficiaries';
@@ -81,6 +82,14 @@ function App() {
             element={
               <PublicRoute>
                 <ResetPassword />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/auth/2fa-verify"
+            element={
+              <PublicRoute>
+                <TwoFactorVerification />
               </PublicRoute>
             }
           />
