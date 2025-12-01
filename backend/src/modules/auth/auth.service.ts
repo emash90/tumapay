@@ -17,6 +17,8 @@ import { SignUpDto, SignInDto, ResetPasswordDto, ForgotPasswordDto, ChangePasswo
 import { SessionService } from './session.service';
 import { BusinessService } from '../business/business.service';
 import { EmailService } from '../email/email.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditEventType } from '../../database/entities/audit-log.entity';
 import type { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
@@ -31,6 +33,7 @@ export class AuthService {
     private verificationRepository: Repository<Verification>,
     private businessService: BusinessService,
     private emailService: EmailService,
+    private auditService: AuditService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -318,6 +321,14 @@ export class AuthService {
     });
 
     if (!user) {
+      // Log failed attempt (email not found)
+      await this.auditService.log({
+        email,
+        eventType: AuditEventType.PASSWORD_RESET_REQUESTED,
+        description: 'Password reset requested for non-existent email',
+        success: false,
+      });
+
       // Don't reveal if user exists or not
       return {
         success: true,
@@ -333,6 +344,15 @@ export class AuthService {
 
     // Send password reset email
     await this.emailService.sendPasswordResetEmail(email, resetToken);
+
+    // Log successful password reset request
+    await this.auditService.log({
+      userId: user.id,
+      email: user.email,
+      eventType: AuditEventType.PASSWORD_RESET_REQUESTED,
+      description: 'Password reset email sent successfully',
+      success: true,
+    });
 
     return {
       success: true,
@@ -355,11 +375,31 @@ export class AuthService {
     });
 
     if (!verification) {
+      // Log failed attempt - invalid token
+      await this.auditService.log({
+        eventType: AuditEventType.PASSWORD_RESET_FAILED,
+        description: 'Password reset attempted with invalid token',
+        success: false,
+        metadata: { reason: 'Invalid or already used token' },
+      });
+
       throw new BadRequestException('Invalid or expired reset token');
     }
 
     // Check if token is expired
     if (new Date() > new Date(verification.expiresAt)) {
+      // Log failed attempt - expired token
+      await this.auditService.log({
+        email: verification.identifier,
+        eventType: AuditEventType.PASSWORD_RESET_FAILED,
+        description: 'Password reset attempted with expired token',
+        success: false,
+        metadata: {
+          reason: 'Token expired',
+          expiresAt: verification.expiresAt,
+        },
+      });
+
       throw new BadRequestException('Reset token has expired');
     }
 
@@ -394,6 +434,22 @@ export class AuthService {
 
     // Invalidate all existing sessions for security
     await this.sessionService.invalidateAllUserSessions(user.id);
+
+    // Send confirmation email
+    await this.emailService.sendPasswordResetConfirmationEmail(user.email);
+
+    // Log successful password reset
+    await this.auditService.log({
+      userId: user.id,
+      email: user.email,
+      eventType: AuditEventType.PASSWORD_RESET_COMPLETED,
+      description: 'Password reset completed successfully',
+      success: true,
+      metadata: {
+        sessionsInvalidated: true,
+        confirmationEmailSent: true,
+      },
+    });
 
     return {
       success: true,

@@ -100,7 +100,7 @@ export interface ForgotPasswordRequest {
 // Reset password request
 export interface ResetPasswordRequest {
   token: string;
-  newPassword: string;
+  password: string;
 }
 
 // Change password request
