@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { Document, DocumentType, DocumentStatus } from '../../database/entities/document.entity';
 import { Business, BusinessKYBStatus } from '../../database/entities/business.entity';
 import { StorageService } from '../storage';
+import { EmailService } from '../email/email.service';
 import { UploadDocumentDto, VerifyDocumentDto } from './dto';
 import {
   validateFile,
@@ -27,6 +28,7 @@ export class DocumentsService {
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
     private readonly storageService: StorageService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -91,6 +93,18 @@ export class DocumentsService {
       const savedDocument = await this.documentRepository.save(document);
 
       this.logger.log(`Document uploaded: ${savedDocument.id} for business ${businessId}`);
+
+      // Send document uploaded confirmation email
+      try {
+        await this.emailService.sendDocumentUploadedEmail(
+          business.user.email,
+          business.businessName,
+          this.formatDocumentType(dto.documentType),
+        );
+      } catch (error) {
+        this.logger.error(`Failed to send document uploaded email to ${business.user.email}`, error);
+        // Don't throw - email failure shouldn't block document upload
+      }
 
       // Check if all required documents are uploaded and update KYB status
       await this.updateKYBStatusIfNeeded(businessId);
@@ -319,6 +333,7 @@ export class DocumentsService {
   private async updateKYBStatusIfNeeded(businessId: string): Promise<void> {
     const business = await this.businessRepository.findOne({
       where: { id: businessId },
+      relations: ['user'],
     });
 
     if (!business || !business.businessType) {
@@ -339,6 +354,16 @@ export class DocumentsService {
       await this.businessRepository.save(business);
 
       this.logger.log(`Business ${businessId} KYB status updated to IN_REVIEW`);
+
+      // Send under review email
+      try {
+        await this.emailService.sendKYBUnderReviewEmail(
+          business.user.email,
+          business.businessName,
+        );
+      } catch (error) {
+        this.logger.error(`Failed to send KYB under review email to ${business.user.email}`, error);
+      }
     }
   }
 
@@ -349,6 +374,7 @@ export class DocumentsService {
   private async updateBusinessKYBStatus(businessId: string): Promise<void> {
     const business = await this.businessRepository.findOne({
       where: { id: businessId },
+      relations: ['user'],
     });
 
     if (!business || !business.businessType) {
@@ -374,12 +400,49 @@ export class DocumentsService {
       await this.businessRepository.save(business);
 
       this.logger.log(`Business ${businessId} KYB status updated to VERIFIED`);
+
+      // Send verification email
+      try {
+        await this.emailService.sendKYBVerifiedEmail(
+          business.user.email,
+          business.businessName,
+        );
+      } catch (error) {
+        this.logger.error(`Failed to send KYB verified email to ${business.user.email}`, error);
+      }
     } else if (anyRejected) {
       // Any required document rejected -> REJECTED
       business.kybStatus = BusinessKYBStatus.REJECTED;
       await this.businessRepository.save(business);
 
       this.logger.log(`Business ${businessId} KYB status updated to REJECTED`);
+
+      // Send rejection email with reasons
+      try {
+        const rejectedDocs = requiredDocuments.filter((d) => d.status === DocumentStatus.REJECTED);
+        const reasons = rejectedDocs
+          .map((d) => `${this.formatDocumentType(d.documentType)}: ${d.rejectionReason || 'No reason provided'}`)
+          .join('; ');
+
+        await this.emailService.sendKYBRejectedEmail(
+          business.user.email,
+          business.businessName,
+          reasons,
+        );
+      } catch (error) {
+        this.logger.error(`Failed to send KYB rejected email to ${business.user.email}`, error);
+      }
     }
+  }
+
+  /**
+   * Format document type for display
+   * @private
+   */
+  private formatDocumentType(documentType: DocumentType): string {
+    return documentType
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   }
 }

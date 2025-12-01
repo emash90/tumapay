@@ -660,4 +660,312 @@ export class EmailService {
 </html>
     `;
   }
+
+  /**
+   * Send KYB under review notification
+   */
+  async sendKYBUnderReviewEmail(
+    email: string,
+    businessName: string,
+  ): Promise<boolean> {
+    const html = this.getKYBUnderReviewTemplate(businessName);
+    const text = `Your business verification for ${businessName} is now under review. We'll notify you once the review is complete.`;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Business Verification Under Review - TumaPay',
+      html,
+      text,
+    });
+  }
+
+  /**
+   * Send KYB verified notification
+   */
+  async sendKYBVerifiedEmail(
+    email: string,
+    businessName: string,
+  ): Promise<boolean> {
+    const html = this.getKYBVerifiedTemplate(businessName);
+    const text = `Congratulations! Your business ${businessName} has been verified. You now have full access to all TumaPay features.`;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Business Verified - TumaPay',
+      html,
+      text,
+    });
+  }
+
+  /**
+   * Send KYB rejected notification
+   */
+  async sendKYBRejectedEmail(
+    email: string,
+    businessName: string,
+    reason: string,
+  ): Promise<boolean> {
+    const html = this.getKYBRejectedTemplate(businessName, reason);
+    const text = `Your business verification for ${businessName} was not approved. Reason: ${reason}. Please upload the correct documents and try again.`;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Business Verification Update Required - TumaPay',
+      html,
+      text,
+    });
+  }
+
+  /**
+   * Send document uploaded notification
+   */
+  async sendDocumentUploadedEmail(
+    email: string,
+    businessName: string,
+    documentType: string,
+  ): Promise<boolean> {
+    const html = this.getDocumentUploadedTemplate(businessName, documentType);
+    const text = `Your ${documentType} document for ${businessName} has been uploaded successfully and is pending review.`;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Document Uploaded Successfully - TumaPay',
+      html,
+      text,
+    });
+  }
+
+  private getKYBUnderReviewTemplate(businessName: string): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Verification Under Review</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 40px 30px; text-align: center; background-color: #F59E0B; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px;">⏳ Under Review</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="margin: 0 0 20px; color: #333333; font-size: 24px;">Business Verification in Progress</h2>
+              <p style="margin: 0 0 20px; color: #666666; font-size: 16px; line-height: 1.5;">
+                Thank you for uploading all required documents for <strong>${businessName}</strong>.
+              </p>
+              <div style="background-color: #fef3c7; border-left: 4px solid: #F59E0B; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.5;">
+                  <strong>Status:</strong> Your business verification is now under review by our compliance team.
+                </p>
+              </div>
+              <p style="margin: 20px 0; color: #666666; font-size: 16px; line-height: 1.5;">
+                We'll review your documents and notify you via email once the verification is complete. This typically takes 1-3 business days.
+              </p>
+              <p style="margin: 20px 0; color: #999999; font-size: 14px; line-height: 1.5;">
+                If we need any additional information, we'll contact you directly.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px; text-align: center; background-color: #f9f9f9; border-radius: 0 0 8px 8px;">
+              <p style="margin: 0; color: #999999; font-size: 14px;">
+                © ${new Date().getFullYear()} TumaPay. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  private getKYBVerifiedTemplate(businessName: string): string {
+    const dashboardUrl = `${this.configService.get('app.frontendUrl')}/dashboard`;
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Verified</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 40px 30px; text-align: center; background-color: #10B981; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px;">✓ Verified!</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="margin: 0 0 20px; color: #333333; font-size: 24px;">Congratulations!</h2>
+              <p style="margin: 0 0 20px; color: #666666; font-size: 16px; line-height: 1.5;">
+                Your business <strong>${businessName}</strong> has been successfully verified!
+              </p>
+              <div style="background-color: #d1fae5; border-left: 4px solid #10B981; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #065f46; font-size: 14px; line-height: 1.5;">
+                  <strong>You now have full access to all TumaPay features:</strong><br/>
+                  ✓ Deposit and withdraw funds<br/>
+                  ✓ Make international transfers<br/>
+                  ✓ Accept payments<br/>
+                  ✓ Access advanced reporting
+                </p>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <a href="${dashboardUrl}" style="display: inline-block; padding: 15px 40px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold;">Go to Dashboard</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 20px 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
+                Thank you for choosing TumaPay for your cross-border payment needs.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px; text-align: center; background-color: #f9f9f9; border-radius: 0 0 8px 8px;">
+              <p style="margin: 0; color: #999999; font-size: 14px;">
+                © ${new Date().getFullYear()} TumaPay. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  private getKYBRejectedTemplate(businessName: string, reason: string): string {
+    const dashboardUrl = `${this.configService.get('app.frontendUrl')}/dashboard/settings`;
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Verification Update Required</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 40px 30px; text-align: center; background-color: #EF4444; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px;">Action Required</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="margin: 0 0 20px; color: #333333; font-size: 24px;">Business Verification Update Needed</h2>
+              <p style="margin: 0 0 20px; color: #666666; font-size: 16px; line-height: 1.5;">
+                We've reviewed the documents for <strong>${businessName}</strong> and need you to take action.
+              </p>
+              <div style="background-color: #fee2e2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #991b1b; font-size: 14px; line-height: 1.5;">
+                  <strong>Reason:</strong><br/>
+                  ${reason}
+                </p>
+              </div>
+              <p style="margin: 20px 0; color: #666666; font-size: 16px; line-height: 1.5;">
+                Please upload the correct documents to complete your business verification.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <a href="${dashboardUrl}" style="display: inline-block; padding: 15px 40px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold;">Upload Documents</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 20px 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
+                If you have any questions, please contact our support team at support@tumapay.com
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px; text-align: center; background-color: #f9f9f9; border-radius: 0 0 8px 8px;">
+              <p style="margin: 0; color: #999999; font-size: 14px;">
+                © ${new Date().getFullYear()} TumaPay. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
+
+  private getDocumentUploadedTemplate(businessName: string, documentType: string): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Uploaded</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 40px 30px; text-align: center; background-color: #4F46E5; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px;">📄 Document Uploaded</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <h2 style="margin: 0 0 20px; color: #333333; font-size: 24px;">Document Received</h2>
+              <p style="margin: 0 0 20px; color: #666666; font-size: 16px; line-height: 1.5;">
+                We've received your <strong>${documentType}</strong> document for <strong>${businessName}</strong>.
+              </p>
+              <div style="background-color: #ede9fe; border-left: 4px solid #4F46E5; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #5b21b6; font-size: 14px; line-height: 1.5;">
+                  <strong>Next Steps:</strong><br/>
+                  Your document is now pending review by our compliance team. We'll notify you once it's been reviewed.
+                </p>
+              </div>
+              <p style="margin: 20px 0 0; color: #999999; font-size: 14px; line-height: 1.5;">
+                Document reviews typically take 1-3 business days.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px; text-align: center; background-color: #f9f9f9; border-radius: 0 0 8px 8px;">
+              <p style="margin: 0; color: #999999; font-size: 14px;">
+                © ${new Date().getFullYear()} TumaPay. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+  }
 }
