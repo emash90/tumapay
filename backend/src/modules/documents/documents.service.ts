@@ -11,6 +11,8 @@ import { Document, DocumentType, DocumentStatus } from '../../database/entities/
 import { Business, BusinessKYBStatus } from '../../database/entities/business.entity';
 import { StorageService } from '../storage';
 import { EmailService } from '../email/email.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditEventType } from '../../database/entities/audit-log.entity';
 import { UploadDocumentDto, VerifyDocumentDto } from './dto';
 import {
   validateFile,
@@ -29,6 +31,7 @@ export class DocumentsService {
     private readonly businessRepository: Repository<Business>,
     private readonly storageService: StorageService,
     private readonly emailService: EmailService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -93,6 +96,21 @@ export class DocumentsService {
       const savedDocument = await this.documentRepository.save(document);
 
       this.logger.log(`Document uploaded: ${savedDocument.id} for business ${businessId}`);
+
+      // Log audit event
+      await this.auditService.log({
+        userId,
+        businessId,
+        documentId: savedDocument.id,
+        email: business.user.email,
+        eventType: AuditEventType.DOCUMENT_UPLOADED,
+        description: `Uploaded ${this.formatDocumentType(dto.documentType)} for ${business.businessName}`,
+        metadata: {
+          documentType: dto.documentType,
+          fileName: file.originalname,
+          fileSize: uploadResult.bytes,
+        },
+      });
 
       // Send document uploaded confirmation email
       try {
@@ -181,6 +199,20 @@ export class DocumentsService {
 
     this.logger.log(`Document deleted: ${documentId}`);
 
+    // Log audit event
+    await this.auditService.log({
+      userId,
+      businessId: document.businessId,
+      documentId,
+      email: document.business.user.email,
+      eventType: AuditEventType.DOCUMENT_DELETED,
+      description: `Deleted ${this.formatDocumentType(document.documentType)} for ${document.business.businessName}`,
+      metadata: {
+        documentType: document.documentType,
+        fileName: document.fileName,
+      },
+    });
+
     // Update KYB status after deletion
     await this.updateKYBStatusIfNeeded(document.businessId);
   }
@@ -226,6 +258,22 @@ export class DocumentsService {
 
     this.logger.log(`Document replaced: ${documentId}`);
 
+    // Log audit event
+    await this.auditService.log({
+      userId,
+      businessId: document.businessId,
+      documentId,
+      email: document.business.user.email,
+      eventType: AuditEventType.DOCUMENT_REPLACED,
+      description: `Replaced ${this.formatDocumentType(document.documentType)} for ${document.business.businessName}`,
+      metadata: {
+        documentType: document.documentType,
+        oldFileName: document.fileName,
+        newFileName: file.originalname,
+        newFileSize: uploadResult.bytes,
+      },
+    });
+
     return updatedDocument;
   }
 
@@ -260,6 +308,25 @@ export class DocumentsService {
     const updatedDocument = await this.documentRepository.save(document);
 
     this.logger.log(`Document ${documentId} verified with status: ${dto.status}`);
+
+    // Log audit event
+    const eventType =
+      dto.status === DocumentStatus.APPROVED
+        ? AuditEventType.DOCUMENT_VERIFIED
+        : AuditEventType.DOCUMENT_REJECTED;
+
+    await this.auditService.log({
+      userId: adminUserId,
+      businessId: document.businessId,
+      documentId,
+      eventType,
+      description: `${dto.status === DocumentStatus.APPROVED ? 'Approved' : 'Rejected'} ${this.formatDocumentType(document.documentType)} for ${document.business.businessName}`,
+      metadata: {
+        documentType: document.documentType,
+        status: dto.status,
+        rejectionReason: dto.rejectionReason || null,
+      },
+    });
 
     // Update business KYB status based on all documents
     await this.updateBusinessKYBStatus(document.businessId);
@@ -355,6 +422,19 @@ export class DocumentsService {
 
       this.logger.log(`Business ${businessId} KYB status updated to IN_REVIEW`);
 
+      // Log audit event
+      await this.auditService.log({
+        userId: business.user.id,
+        businessId,
+        email: business.user.email,
+        eventType: AuditEventType.KYB_STATUS_CHANGED,
+        description: `KYB status changed to IN_REVIEW for ${business.businessName}`,
+        metadata: {
+          oldStatus: BusinessKYBStatus.PENDING,
+          newStatus: BusinessKYBStatus.IN_REVIEW,
+        },
+      });
+
       // Send under review email
       try {
         await this.emailService.sendKYBUnderReviewEmail(
@@ -395,11 +475,26 @@ export class DocumentsService {
 
     if (allApproved && requiredDocuments.length === requiredTypes.length) {
       // All required documents approved -> VERIFIED
+      const oldStatus = business.kybStatus;
       business.kybStatus = BusinessKYBStatus.VERIFIED;
       business.kybVerifiedAt = new Date();
       await this.businessRepository.save(business);
 
       this.logger.log(`Business ${businessId} KYB status updated to VERIFIED`);
+
+      // Log audit event
+      await this.auditService.log({
+        userId: business.user.id,
+        businessId,
+        email: business.user.email,
+        eventType: AuditEventType.KYB_STATUS_CHANGED,
+        description: `KYB status changed to VERIFIED for ${business.businessName}`,
+        metadata: {
+          oldStatus,
+          newStatus: BusinessKYBStatus.VERIFIED,
+          verifiedAt: business.kybVerifiedAt,
+        },
+      });
 
       // Send verification email
       try {
@@ -412,6 +507,7 @@ export class DocumentsService {
       }
     } else if (anyRejected) {
       // Any required document rejected -> REJECTED
+      const oldStatus = business.kybStatus;
       business.kybStatus = BusinessKYBStatus.REJECTED;
       await this.businessRepository.save(business);
 
@@ -423,6 +519,20 @@ export class DocumentsService {
         const reasons = rejectedDocs
           .map((d) => `${this.formatDocumentType(d.documentType)}: ${d.rejectionReason || 'No reason provided'}`)
           .join('; ');
+
+        // Log audit event
+        await this.auditService.log({
+          userId: business.user.id,
+          businessId,
+          email: business.user.email,
+          eventType: AuditEventType.KYB_STATUS_CHANGED,
+          description: `KYB status changed to REJECTED for ${business.businessName}`,
+          metadata: {
+            oldStatus,
+            newStatus: BusinessKYBStatus.REJECTED,
+            reasons,
+          },
+        });
 
         await this.emailService.sendKYBRejectedEmail(
           business.user.email,

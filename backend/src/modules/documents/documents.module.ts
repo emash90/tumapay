@@ -6,12 +6,14 @@ import { Document } from '../../database/entities/document.entity';
 import { Business } from '../../database/entities/business.entity';
 import { StorageModule } from '../storage';
 import { EmailModule } from '../email/email.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Document, Business]),
     StorageModule,
     EmailModule,
+    AuditModule,
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService],

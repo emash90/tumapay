@@ -18,14 +18,29 @@ export enum AuditEventType {
   TWO_FACTOR_FAILED = 'TWO_FACTOR_FAILED',
   TWO_FACTOR_ENABLED = 'TWO_FACTOR_ENABLED',
   TWO_FACTOR_DISABLED = 'TWO_FACTOR_DISABLED',
+  // Document operations
+  DOCUMENT_UPLOADED = 'DOCUMENT_UPLOADED',
+  DOCUMENT_DELETED = 'DOCUMENT_DELETED',
+  DOCUMENT_REPLACED = 'DOCUMENT_REPLACED',
+  DOCUMENT_VERIFIED = 'DOCUMENT_VERIFIED',
+  DOCUMENT_REJECTED = 'DOCUMENT_REJECTED',
+  // KYB operations
+  KYB_STATUS_CHANGED = 'KYB_STATUS_CHANGED',
 }
 
 @Entity('audit_logs')
 @Index(['userId', 'eventType'])
+@Index(['businessId', 'eventType'])
 @Index(['createdAt'])
 export class AuditLog extends BaseEntity {
   @Column({ name: 'user_id', type: 'uuid', nullable: true })
   userId: string | null;
+
+  @Column({ name: 'business_id', type: 'uuid', nullable: true })
+  businessId: string | null;
+
+  @Column({ name: 'document_id', type: 'uuid', nullable: true })
+  documentId: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   email: string | null;
