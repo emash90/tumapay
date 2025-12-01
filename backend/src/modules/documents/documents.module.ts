@@ -7,6 +7,7 @@ import { Business } from '../../database/entities/business.entity';
 import { StorageModule } from '../storage';
 import { EmailModule } from '../email/email.module';
 import { AuditModule } from '../audit/audit.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuditModule } from '../audit/audit.module';
     StorageModule,
     EmailModule,
     AuditModule,
+    AuthModule,
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService],
