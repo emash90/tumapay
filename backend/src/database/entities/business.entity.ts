@@ -2,6 +2,12 @@ import { Entity, Column, OneToOne, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { User } from './user.entity';
 
+export enum BusinessType {
+  SOLE_PROPRIETOR = 'sole_proprietor',
+  LIMITED_COMPANY = 'limited_company',
+  PARTNERSHIP = 'partnership',
+}
+
 export enum BusinessKYBStatus {
   PENDING = 'pending',
   IN_REVIEW = 'in_review',
@@ -23,6 +29,14 @@ export enum BusinessTier {
 export class Business extends BaseEntity {
   @Column({ type: 'varchar', length: 255, name: 'business_name' })
   businessName: string;
+
+  @Column({
+    type: 'enum',
+    enum: BusinessType,
+    nullable: true,
+    name: 'business_type',
+  })
+  businessType: BusinessType | null;
 
   @Column({ type: 'varchar', length: 255, unique: true, name: 'registration_number' })
   registrationNumber: string;
