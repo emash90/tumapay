@@ -5,6 +5,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { WalletService } from '../wallet/wallet.service';
 import { BeneficiariesService } from '../beneficiaries/beneficiaries.service';
 import { BinanceService } from '../binance/binance.service';
@@ -12,6 +14,8 @@ import { TronService } from '../tron/tron.service';
 import { TransactionsService } from '../transactions/transactions.service';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { TransferTimelineService } from './services/transfer-timeline.service';
+import { EmailService } from '../email/email.service';
+import { User } from '../../database/entities/user.entity';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 import { TransferResponseDto } from './dto/transfer-response.dto';
 import { TransferQueryDto } from './dto/transfer-query.dto';
@@ -50,6 +54,9 @@ export class TransfersService {
     private transactionsService: TransactionsService,
     private exchangeRateService: ExchangeRateService,
     private transferTimelineService: TransferTimelineService,
+    private emailService: EmailService,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
   /**
@@ -162,6 +169,9 @@ export class TransfersService {
       );
 
       this.logger.log(`Transfer ${transaction.id} completed successfully`);
+
+      // Send success email notification (non-blocking)
+      await this.sendTransferSuccessNotification(userId, transaction, beneficiary);
 
       return await this.buildResponseDto(transaction.id, beneficiary, exchangeRate);
     } catch (error) {
@@ -657,6 +667,22 @@ export class TransfersService {
       );
 
       this.logger.log(`Rollback completed successfully for transaction ${transactionId}`);
+
+      // Send failure email notification (non-blocking)
+      try {
+        const beneficiary = await this.beneficiariesService.findOne(
+          transaction.metadata?.beneficiaryId,
+          transaction.businessId,
+        );
+        await this.sendTransferFailureNotification(
+          transaction.userId,
+          transaction,
+          beneficiary,
+          error.message,
+        );
+      } catch (emailError) {
+        this.logger.warn(`Could not send failure email: ${emailError.message}`);
+      }
     } catch (rollbackError) {
       this.logger.error(
         `CRITICAL: Rollback failed for transaction ${transactionId}: ${rollbackError.message}`,
@@ -763,5 +789,87 @@ export class TransfersService {
     dto.errorCode = transaction.metadata?.errorCode || undefined;
 
     return dto;
+  }
+
+  /**
+   * Send transfer success notification email
+   * Non-blocking: logs errors but doesn't throw
+   */
+  private async sendTransferSuccessNotification(
+    userId: string,
+    transaction: Transaction,
+    beneficiary: any,
+  ): Promise<void> {
+    try {
+      // Fetch user email
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+
+      if (!user?.email) {
+        this.logger.warn(`Cannot send success email: User ${userId} not found or has no email`);
+        return;
+      }
+
+      // Send success email
+      const emailSent = await this.emailService.sendTransferSuccessEmail(user.email, {
+        recipientName: beneficiary.name,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        reference: transaction.reference,
+        timestamp: transaction.completedAt || new Date(),
+      });
+
+      if (emailSent) {
+        this.logger.log(`Transfer success email sent to ${user.email} for transaction ${transaction.id}`);
+      } else {
+        this.logger.warn(`Failed to send success email to ${user.email} for transaction ${transaction.id}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error sending transfer success email for transaction ${transaction.id}: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
+
+  /**
+   * Send transfer failure notification email
+   * Non-blocking: logs errors but doesn't throw
+   */
+  private async sendTransferFailureNotification(
+    userId: string,
+    transaction: Transaction,
+    beneficiary: any,
+    errorMessage: string,
+  ): Promise<void> {
+    try {
+      // Fetch user email
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+
+      if (!user?.email) {
+        this.logger.warn(`Cannot send failure email: User ${userId} not found or has no email`);
+        return;
+      }
+
+      // Send failure email
+      const emailSent = await this.emailService.sendTransferFailureEmail(user.email, {
+        recipientName: beneficiary.name,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        reference: transaction.reference,
+        reason: errorMessage || 'Transfer processing failed',
+        timestamp: transaction.failedAt || new Date(),
+      });
+
+      if (emailSent) {
+        this.logger.log(`Transfer failure email sent to ${user.email} for transaction ${transaction.id}`);
+      } else {
+        this.logger.warn(`Failed to send failure email to ${user.email} for transaction ${transaction.id}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error sending transfer failure email for transaction ${transaction.id}: ${error.message}`,
+        error.stack,
+      );
+    }
   }
 }

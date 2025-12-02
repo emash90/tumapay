@@ -4,6 +4,7 @@ import { TransfersService } from './transfers.service';
 import { TransferTimelineService } from './services/transfer-timeline.service';
 import { TransfersController } from './transfers.controller';
 import { TransferTimeline } from '../../database/entities/transfer-timeline.entity';
+import { User } from '../../database/entities/user.entity';
 import { WalletModule } from '../wallet/wallet.module';
 import { BeneficiariesModule } from '../beneficiaries/beneficiaries.module';
 import { BinanceModule } from '../binance/binance.module';
@@ -11,6 +12,7 @@ import { TronModule } from '../tron/tron.module';
 import { TransactionsModule } from '../transactions/transactions.module';
 import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 import { AuthModule } from '../auth/auth.module';
+import { EmailModule } from '../email/email.module';
 
 /**
  * TransfersModule
@@ -26,11 +28,12 @@ import { AuthModule } from '../auth/auth.module';
  * - TronModule: For USDT blockchain transfers
  * - TransactionsModule: For transaction record management
  * - AuthModule: For authentication and authorization
+ * - EmailModule: For transfer success/failure notifications
  */
 @Module({
   imports: [
-    // Register TransferTimeline entity with TypeORM
-    TypeOrmModule.forFeature([TransferTimeline]),
+    // Register entities with TypeORM
+    TypeOrmModule.forFeature([TransferTimeline, User]),
 
     // Import dependent modules
     WalletModule,
@@ -40,6 +43,7 @@ import { AuthModule } from '../auth/auth.module';
     TransactionsModule,
     ExchangeRateModule, // Note: singular, not plural
     AuthModule,
+    EmailModule,
   ],
   controllers: [TransfersController],
   providers: [TransfersService, TransferTimelineService],
