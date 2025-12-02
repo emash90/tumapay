@@ -16,6 +16,14 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBearerAuth,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { DocumentsService } from './documents.service';
@@ -23,6 +31,23 @@ import { UploadDocumentDto, VerifyDocumentDto, DocumentResponseDto, BusinessDocu
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+/**
+ * Documents Controller
+ *
+ * Handles HTTP endpoints for KYB document management.
+ * All endpoints require authentication and are business-isolated.
+ *
+ * Endpoints:
+ * - POST   /documents/business/:businessId           - Upload document
+ * - GET    /documents/business/:businessId           - List business documents
+ * - GET    /documents/business/:businessId/summary   - Get document summary
+ * - GET    /documents/:documentId                    - Get single document
+ * - DELETE /documents/:documentId                    - Delete document
+ * - PUT    /documents/:documentId/replace            - Replace document
+ * - PUT    /documents/:documentId/verify             - Verify document (admin only)
+ */
+@ApiTags('Documents')
+@ApiBearerAuth()
 @Controller('documents')
 @UseGuards(AuthGuard)
 export class DocumentsController {
@@ -30,7 +55,6 @@ export class DocumentsController {
 
   /**
    * Upload a document for a business
-   * POST /api/v1/documents/business/:businessId
    */
   @Post('business/:businessId')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
@@ -43,12 +67,28 @@ export class DocumentsController {
       enableImplicitConversion: true,
     },
   }))
+  @ApiOperation({
+    summary: 'Upload KYB document',
+    description: 'Uploads a document for business verification. Supports PDF, JPG, and PNG files up to 5MB.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'businessId', description: 'Business UUID' })
+  @ApiResponse({
+    status: 201,
+    description: 'Document uploaded successfully',
+    type: DocumentResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'File is required or invalid document type' })
+  @ApiResponse({ status: 403, description: 'Forbidden - not your business' })
+  @ApiResponse({ status: 404, description: 'Business not found' })
+  @ApiResponse({ status: 409, description: 'Document type already exists' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async uploadDocument(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser('id') userId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadDocumentDto,
-  ) {
+  ): Promise<{ success: boolean; message: string; data: { document: DocumentResponseDto } }> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -66,13 +106,24 @@ export class DocumentsController {
 
   /**
    * Get all documents for a business
-   * GET /api/v1/documents/business/:businessId
    */
   @Get('business/:businessId')
+  @ApiOperation({
+    summary: 'List business documents',
+    description: 'Returns all documents uploaded for the specified business',
+  })
+  @ApiParam({ name: 'businessId', description: 'Business UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Documents retrieved successfully',
+    type: [DocumentResponseDto],
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - not your business' })
+  @ApiResponse({ status: 404, description: 'Business not found' })
   async getBusinessDocuments(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser('id') userId: string,
-  ) {
+  ): Promise<{ success: boolean; data: { documents: DocumentResponseDto[] } }> {
     const documents = await this.documentsService.getBusinessDocuments(businessId, userId);
 
     return {
@@ -85,13 +136,24 @@ export class DocumentsController {
 
   /**
    * Get business document summary
-   * GET /api/v1/documents/business/:businessId/summary
    */
   @Get('business/:businessId/summary')
+  @ApiOperation({
+    summary: 'Get document summary',
+    description: 'Returns statistics and progress for business KYB documents',
+  })
+  @ApiParam({ name: 'businessId', description: 'Business UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Summary retrieved successfully',
+    type: BusinessDocumentSummaryDto,
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - not your business' })
+  @ApiResponse({ status: 404, description: 'Business not found' })
   async getBusinessDocumentSummary(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser('id') userId: string,
-  ) {
+  ): Promise<{ success: boolean; data: BusinessDocumentSummaryDto }> {
     const summary = await this.documentsService.getBusinessDocumentSummary(businessId, userId);
 
     return {
@@ -105,13 +167,24 @@ export class DocumentsController {
 
   /**
    * Get a specific document
-   * GET /api/v1/documents/:documentId
    */
   @Get(':documentId')
+  @ApiOperation({
+    summary: 'Get document',
+    description: 'Returns a single document by ID',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document retrieved successfully',
+    type: DocumentResponseDto,
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - not your business' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
   async getDocument(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') userId: string,
-  ) {
+  ): Promise<{ success: boolean; data: { document: DocumentResponseDto } }> {
     const document = await this.documentsService.getDocument(documentId, userId);
 
     return {
@@ -124,14 +197,24 @@ export class DocumentsController {
 
   /**
    * Delete a document
-   * DELETE /api/v1/documents/:documentId
    */
   @Delete(':documentId')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete document',
+    description: 'Deletes a document and removes it from storage',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document deleted successfully',
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - not your business' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
   async deleteDocument(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') userId: string,
-  ) {
+  ): Promise<{ success: boolean; message: string; data: Record<string, never> }> {
     await this.documentsService.deleteDocument(documentId, userId);
 
     return {
@@ -143,7 +226,6 @@ export class DocumentsController {
 
   /**
    * Replace a document
-   * PUT /api/v1/documents/:documentId/replace
    */
   @Put(':documentId/replace')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
@@ -156,11 +238,26 @@ export class DocumentsController {
       enableImplicitConversion: true,
     },
   }))
+  @ApiOperation({
+    summary: 'Replace document',
+    description: 'Replaces an existing document with a new file. Useful for rejected documents.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document replaced successfully',
+    type: DocumentResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'File is required' })
+  @ApiResponse({ status: 403, description: 'Forbidden - not your business' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async replaceDocument(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') userId: string,
     @UploadedFile() file: Express.Multer.File,
-  ) {
+  ): Promise<{ success: boolean; message: string; data: { document: DocumentResponseDto } }> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -178,15 +275,27 @@ export class DocumentsController {
 
   /**
    * Verify a document (Admin only)
-   * PUT /api/v1/documents/:documentId/verify
    */
   @Put(':documentId/verify')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify document (Admin)',
+    description: 'Approves or rejects a document. Admin only endpoint.',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document verified successfully',
+    type: DocumentResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid verification data' })
+  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
   async verifyDocument(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') adminUserId: string,
     @Body() dto: VerifyDocumentDto,
-  ) {
+  ): Promise<{ success: boolean; message: string; data: { document: DocumentResponseDto } }> {
     // TODO: Add admin guard to verify user is admin
     const document = await this.documentsService.verifyDocument(documentId, adminUserId, dto);
 

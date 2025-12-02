@@ -133,13 +133,13 @@ export function DocumentList({ businessId }: DocumentListProps) {
           <TableBody>
             {documents.map((doc) => (
               <TableRow key={doc.id}>
-                <TableCell className="font-medium">
+                <TableCell className="font-medium text-gray-900">
                   {DOCUMENT_LABELS[doc.documentType] || doc.documentType}
                 </TableCell>
                 <TableCell className="max-w-xs truncate">
                   <div className="flex items-center space-x-2">
                     <FileText className="h-4 w-4 text-gray-400" />
-                    <span className="truncate">{doc.fileName}</span>
+                    <span className="truncate text-gray-900">{doc.fileName}</span>
                   </div>
                 </TableCell>
                 <TableCell>
