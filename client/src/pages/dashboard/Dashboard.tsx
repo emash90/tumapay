@@ -87,7 +87,7 @@ export default function Dashboard() {
           Welcome back, {user?.firstName}!
         </h1>
         <p className="text-gray-500 mt-1">
-          Here's what's happening with {business?.name || 'your business'} today.
+          Here's what's happening with {business?.businessName || 'your business'} today.
         </p>
       </div>
 

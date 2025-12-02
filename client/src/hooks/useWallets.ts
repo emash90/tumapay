@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { walletService } from '@/api/services/wallet.service';
+import { walletService } from '@/api';
 import type {
   Currency,
   MpesaDepositRequest,
@@ -14,7 +14,7 @@ import type {
   UsdtWithdrawalRequest,
   Wallet,
   WalletsListResponse,
-} from '@/api/types';
+} from '@/api';
 
 // Query keys
 export const walletKeys = {

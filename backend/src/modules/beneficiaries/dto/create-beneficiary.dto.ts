@@ -52,7 +52,7 @@ export class CreateBeneficiaryDto {
 
   @ApiProperty({
     description: 'Turkish National ID (TC Kimlik Numarası) - 11 digits',
-    example: '12345678901',
+    example: '10000000146',
     minLength: 11,
     maxLength: 11,
   })

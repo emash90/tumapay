@@ -26,6 +26,9 @@ const signupSchema = z.object({
   // Business Information (nested object)
   business: z.object({
     businessName: z.string().min(2, 'Business name must be at least 2 characters'),
+    businessType: z.enum(['sole_proprietor', 'limited_company', 'partnership'], {
+      message: 'Please select a business type',
+    }),
     registrationNumber: z.string().min(1, 'Registration number is required'),
     kraPin: z.string().optional(),
     country: z.string().min(2, 'Please select a country'),
@@ -68,6 +71,7 @@ export function SignUpForm({ onSubmit, isLoading = false, error }: SignUpFormPro
       business: {
         country: '',
         industry: '',
+        businessType: '' as any,
       },
     },
   });
@@ -209,6 +213,27 @@ export function SignUpForm({ onSubmit, isLoading = false, error }: SignUpFormPro
             {...register('business.businessName')}
             disabled={isLoading}
           />
+        </div>
+
+        {/* Business Type */}
+        <div className="space-y-2">
+          <Label htmlFor="business.businessType" required>
+            Business Type
+          </Label>
+          <select
+            id="business.businessType"
+            className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            {...register('business.businessType')}
+            disabled={isLoading}
+          >
+            <option value="">Select business type</option>
+            <option value="sole_proprietor">Sole Proprietor</option>
+            <option value="limited_company">Limited Company</option>
+            <option value="partnership">Partnership</option>
+          </select>
+          {errors.business?.businessType && (
+            <p className="text-sm text-red-600">{errors.business.businessType.message}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

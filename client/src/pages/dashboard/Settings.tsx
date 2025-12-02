@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
-import { Shield, User, Bell, Globe } from 'lucide-react';
+import { BusinessSettings } from '@/components/settings/BusinessSettings';
+import { Shield, User, Bell, Globe, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SettingsTab {
@@ -60,6 +61,12 @@ const settingsTabs: SettingsTab[] = [
     label: 'Security',
     icon: Shield,
     component: SecuritySettings,
+  },
+  {
+    id: 'business',
+    label: 'Business',
+    icon: Building2,
+    component: BusinessSettings,
   },
   {
     id: 'profile',

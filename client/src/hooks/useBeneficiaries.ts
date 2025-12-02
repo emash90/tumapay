@@ -4,11 +4,11 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { beneficiaryService } from '@/api/services/beneficiary.service';
+import { beneficiaryService } from '@/api';
 import type {
   CreateBeneficiaryRequest,
   UpdateBeneficiaryRequest,
-} from '@/api/types';
+} from '@/api';
 
 // Query keys
 export const beneficiaryKeys = {

@@ -19,6 +19,8 @@ import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.modul
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { EmailModule } from './modules/email/email.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -60,6 +62,8 @@ import { AuditModule } from './modules/audit/audit.module';
     BinanceModule,
     TronModule,
     TransfersModule,
+    StorageModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

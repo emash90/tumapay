@@ -27,4 +27,7 @@ export {
 export type { ApiErrorResponse } from './errors';
 
 // Services
-export { authService } from './services/auth.service';
+export * from './services';
+
+// Types
+export * from './types';
