@@ -22,27 +22,35 @@ export interface User extends BaseEntity {
 
 // Business entity
 export interface Business extends BaseEntity {
-  name: string;
-  businessType: string;
-  registrationNumber?: string;
+  businessName: string;
+  businessType?: string;
+  registrationNumber: string;
   taxId?: string;
-  phoneNumber: string;
-  email: string;
+  kraPin?: string;
+  businessPhone?: string;
+  businessEmail?: string;
   website?: string;
   address?: string;
   city?: string;
+  state?: string;
+  postalCode?: string;
   country: string;
-  isVerified: boolean;
-  verificationStatus: BusinessVerificationStatus;
-  verifiedAt?: string;
-  userId: string;
+  industry?: string;
+  description?: string;
+  kybStatus: BusinessVerificationStatus;
+  tier: string;
+  dailyLimit: number;
+  monthlyLimit: number;
+  kybVerifiedAt?: string;
+  kybRejectionReason?: string;
 }
 
 export type BusinessVerificationStatus =
   | 'pending'
-  | 'under_review'
+  | 'in_review'
   | 'verified'
-  | 'rejected';
+  | 'rejected'
+  | 'suspended';
 
 // Session entity
 export interface Session extends BaseEntity {
@@ -66,6 +74,7 @@ export interface SignUpRequest {
   phoneNumber?: string;
   business: {
     businessName: string;
+    businessType: 'sole_proprietor' | 'limited_company' | 'partnership';
     registrationNumber: string;
     kraPin?: string;
     country: string;

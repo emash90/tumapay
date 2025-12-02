@@ -31,14 +31,13 @@ export class CreateBusinessDto {
   @MaxLength(255, { message: 'Registration number must not exceed 255 characters' })
   registrationNumber: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     enum: BusinessType,
     example: BusinessType.LIMITED_COMPANY,
     description: 'Type of business entity (sole_proprietor, limited_company, partnership)',
   })
-  @IsOptional()
   @IsEnum(BusinessType, { message: 'Invalid business type' })
-  businessType?: BusinessType;
+  businessType: BusinessType;
 
   @ApiPropertyOptional({
     example: 'A123456789X',
@@ -59,30 +58,27 @@ export class CreateBusinessDto {
   @Length(2, 2, { message: 'Country code must be exactly 2 characters (ISO format)' })
   country: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'Technology',
     description: 'Industry or business sector',
   })
-  @IsOptional()
   @IsString()
   @MaxLength(255)
-  industry?: string;
+  industry: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'info@acmecorp.com',
     description: 'Business email address',
   })
-  @IsOptional()
   @IsEmail({}, { message: 'Invalid business email format' })
-  businessEmail?: string;
+  businessEmail: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: '+254712345678',
     description: 'Business phone number',
   })
-  @IsOptional()
   @IsPhoneNumber(undefined, { message: 'Invalid phone number format' })
-  businessPhone?: string;
+  businessPhone: string;
 
   @ApiPropertyOptional({
     example: '123 Business Street',

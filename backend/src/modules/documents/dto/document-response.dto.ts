@@ -1,4 +1,6 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Document, DocumentType, DocumentStatus } from '../../../database/entities/document.entity';
+import { BusinessType } from '../../../database/entities/business.entity';
 
 export class DocumentResponseDto {
   id: string;
@@ -47,20 +49,39 @@ export class DocumentListResponseDto {
 }
 
 export class BusinessDocumentSummaryDto {
+  @ApiProperty()
   businessId: string;
-  businessType: string | null;
+
+  @ApiPropertyOptional({ enum: BusinessType })
+  businessType?: BusinessType;
+
+  @ApiProperty()
   totalDocuments: number;
+
+  @ApiProperty()
   approvedDocuments: number;
+
+  @ApiProperty()
   pendingDocuments: number;
+
+  @ApiProperty()
   rejectedDocuments: number;
+
+  @ApiProperty()
   requiredDocuments: number;
+
+  @ApiProperty()
   uploadedRequiredDocuments: number;
+
+  @ApiProperty()
   allRequiredUploaded: boolean;
+
+  @ApiProperty({ type: [DocumentResponseDto] })
   documents: DocumentResponseDto[];
 
   constructor(data: {
     businessId: string;
-    businessType: string | null;
+    businessType?: BusinessType;
     totalDocuments: number;
     approvedDocuments: number;
     pendingDocuments: number;

@@ -13,6 +13,8 @@ import {
   HttpStatus,
   HttpCode,
   BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
@@ -33,12 +35,20 @@ export class DocumentsController {
   @Post('business/:businessId')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
   @UseInterceptors(FileInterceptor('file'))
+  @UsePipes(new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: false, // Allow extra fields for multipart/form-data
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+  }))
   async uploadDocument(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser('id') userId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadDocumentDto,
-  ): Promise<{ message: string; document: DocumentResponseDto }> {
+  ) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -46,8 +56,11 @@ export class DocumentsController {
     const document = await this.documentsService.uploadDocument(businessId, userId, file, dto);
 
     return {
+      success: true,
       message: 'Document uploaded successfully',
-      document: new DocumentResponseDto(document),
+      data: {
+        document: new DocumentResponseDto(document),
+      },
     };
   }
 
@@ -59,11 +72,14 @@ export class DocumentsController {
   async getBusinessDocuments(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser('id') userId: string,
-  ): Promise<{ documents: DocumentResponseDto[] }> {
+  ) {
     const documents = await this.documentsService.getBusinessDocuments(businessId, userId);
 
     return {
-      documents: documents.map((doc) => new DocumentResponseDto(doc)),
+      success: true,
+      data: {
+        documents: documents.map((doc) => new DocumentResponseDto(doc)),
+      },
     };
   }
 
@@ -75,10 +91,16 @@ export class DocumentsController {
   async getBusinessDocumentSummary(
     @Param('businessId', ParseUUIDPipe) businessId: string,
     @CurrentUser('id') userId: string,
-  ): Promise<BusinessDocumentSummaryDto> {
+  ) {
     const summary = await this.documentsService.getBusinessDocumentSummary(businessId, userId);
 
-    return new BusinessDocumentSummaryDto(summary);
+    return {
+      success: true,
+      data: new BusinessDocumentSummaryDto({
+        ...summary,
+        businessType: summary.businessType ?? undefined,
+      }),
+    };
   }
 
   /**
@@ -89,11 +111,14 @@ export class DocumentsController {
   async getDocument(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') userId: string,
-  ): Promise<{ document: DocumentResponseDto }> {
+  ) {
     const document = await this.documentsService.getDocument(documentId, userId);
 
     return {
-      document: new DocumentResponseDto(document),
+      success: true,
+      data: {
+        document: new DocumentResponseDto(document),
+      },
     };
   }
 
@@ -106,11 +131,13 @@ export class DocumentsController {
   async deleteDocument(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') userId: string,
-  ): Promise<{ message: string }> {
+  ) {
     await this.documentsService.deleteDocument(documentId, userId);
 
     return {
+      success: true,
       message: 'Document deleted successfully',
+      data: {},
     };
   }
 
@@ -121,11 +148,19 @@ export class DocumentsController {
   @Put(':documentId/replace')
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 uploads per minute
   @UseInterceptors(FileInterceptor('file'))
+  @UsePipes(new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: false, // Allow extra fields for multipart/form-data
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
+  }))
   async replaceDocument(
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') userId: string,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<{ message: string; document: DocumentResponseDto }> {
+  ) {
     if (!file) {
       throw new BadRequestException('File is required');
     }
@@ -133,8 +168,11 @@ export class DocumentsController {
     const document = await this.documentsService.replaceDocument(documentId, userId, file);
 
     return {
+      success: true,
       message: 'Document replaced successfully',
-      document: new DocumentResponseDto(document),
+      data: {
+        document: new DocumentResponseDto(document),
+      },
     };
   }
 
@@ -148,13 +186,16 @@ export class DocumentsController {
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser('id') adminUserId: string,
     @Body() dto: VerifyDocumentDto,
-  ): Promise<{ message: string; document: DocumentResponseDto }> {
+  ) {
     // TODO: Add admin guard to verify user is admin
     const document = await this.documentsService.verifyDocument(documentId, adminUserId, dto);
 
     return {
+      success: true,
       message: 'Document verified successfully',
-      document: new DocumentResponseDto(document),
+      data: {
+        document: new DocumentResponseDto(document),
+      },
     };
   }
 }

@@ -20,3 +20,42 @@ export type { AlertProps } from './alert';
 export { Skeleton, CardSkeleton, TableSkeleton, ChartSkeleton } from './skeleton';
 
 export { Modal } from './modal';
+
+export { Badge, badgeVariants } from './badge';
+export type { BadgeProps } from './badge';
+
+export { Progress } from './progress';
+export type { ProgressProps } from './progress';
+
+export { Separator } from './separator';
+export type { SeparatorProps } from './separator';
+
+export {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from './select';
+
+export {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from './alert-dialog';
+
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+} from './table';

@@ -89,7 +89,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
               <Building2 className="h-4 w-4 text-gray-500" />
               <span className="text-sm font-medium text-gray-700 max-w-[150px] truncate">
-                {business.name}
+                {business.businessName}
               </span>
             </div>
           )}
