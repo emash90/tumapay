@@ -1,7 +1,9 @@
-import { Controller, Post, Body, Param, Logger, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { Controller, Post, Body, Param, Logger, BadRequestException, Headers } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { PaymentProviderFactory } from './payment-provider.factory';
 import { PaymentMethod } from './enums/payment-method.enum';
+import { FlutterwaveService } from './services/flutterwave.service';
+import { FlutterwaveWebhookDto } from './dto/flutterwave/webhook.dto';
 
 /**
  * Universal Payment Provider Callback Controller
@@ -21,7 +23,10 @@ import { PaymentMethod } from './enums/payment-method.enum';
 export class PaymentProvidersController {
   private readonly logger = new Logger(PaymentProvidersController.name);
 
-  constructor(private readonly providerFactory: PaymentProviderFactory) {}
+  constructor(
+    private readonly providerFactory: PaymentProviderFactory,
+    private readonly flutterwaveService: FlutterwaveService,
+  ) {}
 
   /**
    * M-Pesa STK Push Callback
@@ -66,6 +71,61 @@ export class PaymentProvidersController {
   async handleAbsaCallback(@Body() callbackData: any) {
     this.logger.log('Received ABSA Bank callback');
     return await this.processCallback(PaymentMethod.ABSA, callbackData);
+  }
+
+  /**
+   * Flutterwave Webhook Callback
+   *
+   * Handles webhooks from Flutterwave payment gateway
+   * Includes signature verification for security
+   */
+  @Post('flutterwave')
+  @ApiOperation({
+    summary: 'Flutterwave webhook callback',
+    description: 'Webhook endpoint for Flutterwave payment notifications. Includes signature verification.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Webhook processed successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid signature or payload',
+  })
+  async handleFlutterwaveCallback(
+    @Body() webhookPayload: FlutterwaveWebhookDto,
+    @Headers('verif-hash') signature: string,
+  ) {
+    try {
+      this.logger.log(`Received Flutterwave webhook: ${webhookPayload.event}`);
+      this.logger.debug(`Webhook payload: ${JSON.stringify(webhookPayload)}`);
+
+      // Handle the webhook via FlutterwaveService (includes signature verification)
+      const response = await this.flutterwaveService.handleWebhook(
+        webhookPayload,
+        signature,
+      );
+
+      this.logger.log(`Flutterwave webhook processed: ${webhookPayload.data.tx_ref}`);
+
+      // Process the callback through the generic handler as well
+      // This ensures transaction status is updated in our system
+      await this.processCallback(PaymentMethod.FLUTTERWAVE, webhookPayload);
+
+      return response;
+    } catch (error) {
+      this.logger.error(
+        `Failed to process Flutterwave webhook: ${error.message}`,
+        error.stack,
+      );
+
+      // Return success to Flutterwave to avoid retries
+      // But log the error for investigation
+      return {
+        status: 'success',
+        message: 'Webhook received',
+      };
+    }
   }
 
   /**

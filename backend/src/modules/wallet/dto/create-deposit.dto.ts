@@ -3,12 +3,15 @@ import {
   IsNumber,
   IsString,
   IsOptional,
+  IsEmail,
+  IsEnum,
   Min,
   Max,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsKenyanPhoneNumber, normalizeKenyanPhone } from '../../../common/validators/kenyan-phone.validator';
+import { WalletCurrency } from '../../../database/entities/wallet.entity';
 
 /**
  * M-Pesa Deposit DTO
@@ -106,4 +109,71 @@ export class BankTransferDepositDto {
   @IsOptional()
   @IsString({ message: 'Description must be a string' })
   description?: string;
+}
+
+/**
+ * Flutterwave Deposit DTO
+ * Used for POST /wallets/deposit/flutterwave
+ */
+export class FlutterwaveDepositDto {
+  @ApiProperty({
+    description: 'Amount to deposit',
+    example: 1000,
+    minimum: 100,
+    maximum: 1000000,
+  })
+  @IsNotEmpty({ message: 'Amount is required' })
+  @IsNumber({}, { message: 'Amount must be a number' })
+  @Min(100, { message: 'Minimum deposit is 100' })
+  @Max(1000000, { message: 'Maximum deposit is 1,000,000' })
+  amount: number;
+
+  @ApiProperty({
+    description: 'Currency for the deposit',
+    enum: WalletCurrency,
+    example: 'KES',
+  })
+  @IsNotEmpty({ message: 'Currency is required' })
+  @IsEnum(WalletCurrency, { message: 'Invalid currency' })
+  currency: WalletCurrency;
+
+  @ApiProperty({
+    description: 'Email address for payment notification',
+    example: 'customer@example.com',
+  })
+  @IsNotEmpty({ message: 'Email is required' })
+  @IsEmail({}, { message: 'Invalid email address' })
+  email: string;
+
+  @ApiPropertyOptional({
+    description: 'Phone number for payment notification (optional)',
+    example: '254712345678',
+  })
+  @IsOptional()
+  @IsString({ message: 'Phone number must be a string' })
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({
+    description: 'Customer name (optional)',
+    example: 'John Doe',
+  })
+  @IsOptional()
+  @IsString({ message: 'Customer name must be a string' })
+  customerName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional description for the deposit',
+    example: 'Wallet deposit via Flutterwave',
+  })
+  @IsOptional()
+  @IsString({ message: 'Description must be a string' })
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Redirect URL after payment completion',
+    example: 'https://example.com/payment/callback',
+  })
+  @IsOptional()
+  @IsString({ message: 'Redirect URL must be a string' })
+  redirectUrl?: string;
 }

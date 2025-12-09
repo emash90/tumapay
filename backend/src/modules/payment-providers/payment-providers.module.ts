@@ -2,12 +2,14 @@ import { Module, OnModuleInit, forwardRef } from '@nestjs/common';
 import { PaymentProviderFactory } from './payment-provider.factory';
 import { MpesaPaymentProvider } from './providers/mpesa.provider';
 import { TronPaymentProvider } from './providers/tron.provider';
+import { FlutterwavePaymentProvider } from './providers/flutterwave.provider';
 import { MpesaModule } from '../mpesa/mpesa.module';
 import { TronModule } from '../tron/tron.module';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { ProviderSelectionService } from './services/provider-selection.service';
 import { ProviderRetryService } from './services/provider-retry.service';
 import { ProviderMetricsService } from './services/provider-metrics.service';
+import { FlutterwaveService } from './services/flutterwave.service';
 import { PaymentProvidersController } from './payment-providers.controller';
 
 /**
@@ -45,6 +47,8 @@ import { PaymentProvidersController } from './payment-providers.controller';
     ProviderMetricsService,
     MpesaPaymentProvider,
     TronPaymentProvider,
+    FlutterwaveService,
+    FlutterwavePaymentProvider,
   ],
   exports: [
     PaymentProviderFactory, // Export factory for use in other modules
@@ -58,6 +62,7 @@ export class PaymentProvidersModule implements OnModuleInit {
     private readonly factory: PaymentProviderFactory,
     private readonly mpesaProvider: MpesaPaymentProvider,
     private readonly tronProvider: TronPaymentProvider,
+    private readonly flutterwaveProvider: FlutterwavePaymentProvider,
   ) {}
 
   /**
@@ -69,6 +74,9 @@ export class PaymentProvidersModule implements OnModuleInit {
 
     // Register TRON provider for USDT withdrawals
     this.factory.registerProvider(PaymentMethod.USDT_TRON, this.tronProvider);
+
+    // Register Flutterwave provider for bank transfer deposits
+    this.factory.registerProvider(PaymentMethod.FLUTTERWAVE, this.flutterwaveProvider);
 
     // Future providers can be registered here:
     // this.factory.registerProvider(PaymentMethod.ABSA, this.absaProvider);

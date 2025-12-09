@@ -32,6 +32,7 @@ import { WalletTransactionType } from '../../database/entities/wallet-transactio
 import {
   MpesaDepositDto,
   BankTransferDepositDto,
+  FlutterwaveDepositDto,
   MpesaWithdrawalDto,
   BankTransferWithdrawalDto,
   UsdtWithdrawalDto,
@@ -675,7 +676,7 @@ export class WalletController {
   ) {
     const { amount, accountNumber, accountHolderName, bankName, bankBranch, description } = bankTransferDepositDto;
 
-    const bankDetails = {
+    const additionalMetadata = {
       accountNumber,
       accountHolderName,
       bankName,
@@ -689,7 +690,7 @@ export class WalletController {
       undefined, // No phone number for bank transfer
       description,
       PaymentMethod.BANK_TRANSFER,
-      bankDetails,
+      additionalMetadata,
     );
 
     return {
@@ -706,7 +707,82 @@ export class WalletController {
         },
         providerTransactionId: result.providerTransactionId,
         instructions: 'Transfer funds to the account details provided. Your wallet will be credited once payment is confirmed.',
-        bankDetails,
+        bankDetails: additionalMetadata,
+      },
+    };
+  }
+
+  @Post('deposit/flutterwave')
+  @UseGuards(BusinessVerifiedGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Deposit funds to wallet via Flutterwave',
+    description: 'Initiate Flutterwave payment for wallet deposit. Supports multiple payment methods (bank transfer, card, etc.). Requires verified business.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Deposit initiated successfully. Use the payment link to complete the payment.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid amount, currency, or email',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Business not verified',
+  })
+  async depositToWalletViaFlutterwave(
+    @Body() flutterwaveDepositDto: FlutterwaveDepositDto,
+    @CurrentUser() user: User,
+    @Req() request: Request & { business: Business },
+  ) {
+    const {
+      amount,
+      email,
+      phoneNumber,
+      customerName,
+      description,
+      redirectUrl
+    } = flutterwaveDepositDto;
+
+    // Pass Flutterwave-specific metadata
+    const additionalMetadata = {
+      email,
+      phoneNumber,
+      customerName,
+      redirectUrl,
+      userId: user.id,
+      businessId: request.business.id,
+    };
+
+    const result = await this.walletService.initiateDeposit(
+      request.business.id,
+      user.id,
+      amount,
+      phoneNumber,
+      description || 'Wallet deposit via Flutterwave',
+      PaymentMethod.FLUTTERWAVE,
+      additionalMetadata,
+    );
+
+    return {
+      success: true,
+      message: 'Deposit initiated. Complete payment using the provided link.',
+      data: {
+        transaction: {
+          id: result.transaction.id,
+          reference: result.transaction.reference,
+          amount: result.transaction.amount,
+          status: result.transaction.status,
+          currency: result.transaction.currency,
+          walletId: result.transaction.walletId,
+        },
+        providerTransactionId: result.providerTransactionId,
+        instructions: 'Payment initiated. You will receive payment instructions via email or SMS. You can pay via bank transfer, card, or other supported methods.',
       },
     };
   }

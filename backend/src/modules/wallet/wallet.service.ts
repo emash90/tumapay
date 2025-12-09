@@ -415,12 +415,7 @@ export class WalletService {
     phoneNumber?: string,
     description?: string,
     preferredPaymentMethod?: PaymentMethod,
-    bankDetails?: {
-      accountNumber?: string;
-      accountHolderName?: string;
-      bankName?: string;
-      bankBranch?: string;
-    },
+    additionalMetadata?: Record<string, any>,
   ): Promise<{ transaction: Transaction; providerTransactionId: string }> {
     this.logger.log(
       `Initiating deposit: ${amount} KES for business ${businessId}`,
@@ -474,13 +469,8 @@ export class WalletService {
         metadata: {
           accountReference: transaction.reference,
           transactionDesc: description || 'Deposit to TumaPay wallet',
-          // Include bank details if provided
-          ...(bankDetails && {
-            accountNumber: bankDetails.accountNumber,
-            accountHolderName: bankDetails.accountHolderName,
-            bankName: bankDetails.bankName,
-            bankBranch: bankDetails.bankBranch,
-          }),
+          // Include additional metadata if provided (bank details, Flutterwave data, etc.)
+          ...(additionalMetadata || {}),
         },
       };
 
