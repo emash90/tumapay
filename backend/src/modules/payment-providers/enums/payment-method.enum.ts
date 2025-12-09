@@ -34,6 +34,13 @@ export enum PaymentMethod {
    * - Features: Cryptocurrency withdrawals via TRON network
    */
   USDT_TRON = 'usdt_tron',
+
+  /**
+   * Flutterwave payment gateway
+   * - Supports: KES, USD, NGN, GHS, and other African currencies
+   * - Features: Bank transfer deposits, card payments
+   */
+  FLUTTERWAVE = 'flutterwave',
 }
 
 /**

@@ -47,6 +47,7 @@
     "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.3",
+    "flutterwave-node-v3": "^1.3.0",
     "ioredis": "^5.8.2",
     "mpesa-api": "^3.0.2",
     "multer": "^2.0.2",
