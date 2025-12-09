@@ -3,7 +3,7 @@ import { IPaymentProvider } from '../interfaces/payment-provider.interface';
 import { PaymentProviderConfig } from '../dto/payment-provider-config.dto';
 import { PaymentResponse } from '../dto/payment-response.dto';
 import { FlutterwaveService } from '../services/flutterwave.service';
-import { FlutterwavePaymentDto } from '../dto/flutterwave/payment.dto';
+import { FlutterwavePaymentDto } from '../../flutterwave/dto/payment.dto';
 import {
   IProviderCapabilities,
   ProviderTransactionType,

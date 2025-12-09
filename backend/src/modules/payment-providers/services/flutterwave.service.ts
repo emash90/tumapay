@@ -4,14 +4,14 @@ import Flutterwave from 'flutterwave-node-v3';
 import {
   FlutterwavePaymentDto,
   FlutterwavePaymentResponse,
-} from '../dto/flutterwave/payment.dto';
+} from '../../flutterwave/dto/payment.dto';
 import {
   FlutterwaveVerificationResponse,
-} from '../dto/flutterwave/verification.dto';
+} from '../../flutterwave/dto/verification.dto';
 import {
   FlutterwaveWebhookDto,
   FlutterwaveWebhookResponse,
-} from '../dto/flutterwave/webhook.dto';
+} from '../../flutterwave/dto/flutterwave-webhook.dto';
 import * as crypto from 'crypto';
 
 /**

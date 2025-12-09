@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { PaymentProviderFactory } from './payment-provider.factory';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { FlutterwaveService } from './services/flutterwave.service';
-import { FlutterwaveWebhookDto } from './dto/flutterwave/webhook.dto';
+import { FlutterwaveWebhookDto } from '../flutterwave/dto/flutterwave-webhook.dto';
 
 /**
  * Universal Payment Provider Callback Controller

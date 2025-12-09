@@ -9,7 +9,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  */
 export class FlutterwaveWebhookDto {
   /**
-   * Event type (e.g., 'charge.completed')
+   * Event type (e.g., 'charge.completed', 'transfer.completed')
    */
   @ApiProperty({
     description: 'Webhook event type',
@@ -23,24 +23,24 @@ export class FlutterwaveWebhookDto {
    * Event data containing transaction details
    */
   @ApiProperty({
-    description: 'Event data',
+    description: 'Event data containing transaction details',
   })
   @IsObject()
   @IsNotEmpty()
-  data: FlutterwaveWebhookData;
+  data: FlutterwaveWebhookDataDto;
 }
 
 /**
- * Flutterwave Webhook Event Data
+ * Flutterwave Webhook Event Data DTO
  *
  * Contains the actual transaction data from the webhook.
  */
-export class FlutterwaveWebhookData {
+export class FlutterwaveWebhookDataDto {
   /**
    * Transaction ID
    */
   @ApiProperty({
-    description: 'Transaction ID',
+    description: 'Flutterwave transaction ID',
     example: 123456,
   })
   @IsNumber()
@@ -51,7 +51,7 @@ export class FlutterwaveWebhookData {
    */
   @ApiProperty({
     description: 'Transaction reference',
-    example: 'TXN_123456789',
+    example: 'FLW_123456789',
   })
   @IsString()
   tx_ref: string;
@@ -101,7 +101,7 @@ export class FlutterwaveWebhookData {
    * Application fee
    */
   @ApiPropertyOptional({
-    description: 'Application fee',
+    description: 'Application fee charged',
     example: 15,
   })
   @IsNumber()
@@ -112,7 +112,7 @@ export class FlutterwaveWebhookData {
    * Merchant fee
    */
   @ApiPropertyOptional({
-    description: 'Merchant fee',
+    description: 'Merchant fee charged',
     example: 15,
   })
   @IsNumber()
@@ -123,7 +123,7 @@ export class FlutterwaveWebhookData {
    * Payment status
    */
   @ApiProperty({
-    description: 'Payment status',
+    description: 'Payment status (successful, failed, pending)',
     example: 'successful',
   })
   @IsString()
@@ -133,7 +133,7 @@ export class FlutterwaveWebhookData {
    * Payment type
    */
   @ApiPropertyOptional({
-    description: 'Payment type',
+    description: 'Payment type (bank_transfer, card, ussd, etc.)',
     example: 'bank_transfer',
   })
   @IsString()
@@ -144,7 +144,7 @@ export class FlutterwaveWebhookData {
    * Transaction created date
    */
   @ApiPropertyOptional({
-    description: 'Transaction created date',
+    description: 'Transaction created timestamp',
     example: '2024-01-01T12:00:00.000Z',
   })
   @IsString()
@@ -181,6 +181,30 @@ export class FlutterwaveWebhookData {
    * Additional properties
    */
   [key: string]: any;
+}
+
+/**
+ * Webhook Verification Result DTO
+ *
+ * Result of webhook signature verification.
+ */
+export class WebhookVerificationResultDto {
+  /**
+   * Whether the webhook signature is valid
+   */
+  @ApiProperty({
+    description: 'Whether the webhook signature is valid',
+    example: true,
+  })
+  isValid: boolean;
+
+  /**
+   * Webhook data if valid
+   */
+  @ApiPropertyOptional({
+    description: 'Webhook data if signature is valid',
+  })
+  data?: any;
 }
 
 /**
