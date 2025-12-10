@@ -241,6 +241,7 @@ export class ProviderSelectionService {
       absa: PaymentMethod.ABSA,
       bank_transfer: PaymentMethod.BANK_TRANSFER,
       tron: PaymentMethod.USDT_TRON,
+      flutterwave: PaymentMethod.FLUTTERWAVE,
     };
 
     return methodMap[providerName] || null;
