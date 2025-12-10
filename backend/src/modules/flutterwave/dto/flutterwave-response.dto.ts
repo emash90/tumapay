@@ -45,7 +45,7 @@ export class BankTransferResponseDto extends FlutterwaveResponseDto {
   @ApiPropertyOptional({
     description: 'Payment data including account details',
   })
-  data?: {
+  declare data?: {
     /**
      * Payment link for customer
      */
@@ -110,7 +110,7 @@ export class TransactionStatusResponseDto extends FlutterwaveResponseDto {
   @ApiPropertyOptional({
     description: 'Transaction data',
   })
-  data?: {
+  declare data?: {
     /**
      * Transaction ID
      */

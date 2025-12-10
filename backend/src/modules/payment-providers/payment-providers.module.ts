@@ -5,11 +5,14 @@ import { TronPaymentProvider } from './providers/tron.provider';
 import { FlutterwavePaymentProvider } from './providers/flutterwave.provider';
 import { MpesaModule } from '../mpesa/mpesa.module';
 import { TronModule } from '../tron/tron.module';
+import { FlutterwaveModule } from '../flutterwave/flutterwave.module';
+import { TransactionsModule } from '../transactions/transactions.module';
+import { WalletModule } from '../wallet/wallet.module';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { ProviderSelectionService } from './services/provider-selection.service';
 import { ProviderRetryService } from './services/provider-retry.service';
 import { ProviderMetricsService } from './services/provider-metrics.service';
-import { FlutterwaveService } from './services/flutterwave.service';
+import { FlutterwaveService as FlutterwaveProviderService } from './services/flutterwave.service';
 import { PaymentProvidersController } from './payment-providers.controller';
 
 /**
@@ -36,6 +39,9 @@ import { PaymentProvidersController } from './payment-providers.controller';
   imports: [
     forwardRef(() => MpesaModule), // Use forwardRef to resolve circular dependency with WalletModule
     TronModule, // TRON blockchain integration for USDT
+    FlutterwaveModule, // Flutterwave integration for bank transfers
+    TransactionsModule, // For transaction status updates in webhooks
+    forwardRef(() => WalletModule), // For wallet crediting in webhooks
   ],
   controllers: [
     PaymentProvidersController, // Universal callback controller for all providers
@@ -47,7 +53,7 @@ import { PaymentProvidersController } from './payment-providers.controller';
     ProviderMetricsService,
     MpesaPaymentProvider,
     TronPaymentProvider,
-    FlutterwaveService,
+    FlutterwaveProviderService, // Provider-specific service (uses payment-providers/services)
     FlutterwavePaymentProvider,
   ],
   exports: [

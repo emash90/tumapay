@@ -1,9 +1,13 @@
-import { Controller, Post, Body, Param, Logger, BadRequestException, Headers } from '@nestjs/common';
+import { Controller, Post, Body, Param, Logger, BadRequestException, Headers, Inject, forwardRef } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { PaymentProviderFactory } from './payment-provider.factory';
 import { PaymentMethod } from './enums/payment-method.enum';
-import { FlutterwaveService } from './services/flutterwave.service';
+import { FlutterwaveService } from '../flutterwave/flutterwave.service';
 import { FlutterwaveWebhookDto } from '../flutterwave/dto/flutterwave-webhook.dto';
+import { TransactionsService } from '../transactions/transactions.service';
+import { WalletService } from '../wallet/wallet.service';
+import { TransactionStatus } from '../../database/entities/transaction.entity';
+import { WalletTransactionType } from '../../database/entities/wallet-transaction.entity';
 
 /**
  * Universal Payment Provider Callback Controller
@@ -26,6 +30,9 @@ export class PaymentProvidersController {
   constructor(
     private readonly providerFactory: PaymentProviderFactory,
     private readonly flutterwaveService: FlutterwaveService,
+    private readonly transactionsService: TransactionsService,
+    @Inject(forwardRef(() => WalletService))
+    private readonly walletService: WalletService,
   ) {}
 
   /**
@@ -76,13 +83,17 @@ export class PaymentProvidersController {
   /**
    * Flutterwave Webhook Callback
    *
-   * Handles webhooks from Flutterwave payment gateway
-   * Includes signature verification for security
+   * Handles webhooks from Flutterwave payment gateway with full transaction processing:
+   * - Signature verification for security
+   * - Transaction status updates
+   * - Wallet crediting on successful payments
+   * - Idempotency to prevent duplicate processing
+   * - Comprehensive error handling and logging
    */
   @Post('flutterwave')
   @ApiOperation({
     summary: 'Flutterwave webhook callback',
-    description: 'Webhook endpoint for Flutterwave payment notifications. Includes signature verification.',
+    description: 'Webhook endpoint for Flutterwave payment notifications. Includes signature verification, transaction updates, and wallet crediting.',
   })
   @ApiResponse({
     status: 200,
@@ -100,19 +111,144 @@ export class PaymentProvidersController {
       this.logger.log(`Received Flutterwave webhook: ${webhookPayload.event}`);
       this.logger.debug(`Webhook payload: ${JSON.stringify(webhookPayload)}`);
 
-      // Handle the webhook via FlutterwaveService (includes signature verification)
-      const response = await this.flutterwaveService.handleWebhook(
+      // STEP 1: Verify webhook signature for security
+      const verificationResult = this.flutterwaveService.verifyWebhookSignature(
         webhookPayload,
         signature,
       );
 
-      this.logger.log(`Flutterwave webhook processed: ${webhookPayload.data.tx_ref}`);
+      if (!verificationResult.isValid) {
+        this.logger.error('Invalid Flutterwave webhook signature');
+        throw new BadRequestException('Invalid webhook signature');
+      }
 
-      // Process the callback through the generic handler as well
-      // This ensures transaction status is updated in our system
-      await this.processCallback(PaymentMethod.FLUTTERWAVE, webhookPayload);
+      this.logger.log('Webhook signature verified successfully');
 
-      return response;
+      const { data } = webhookPayload;
+      const { tx_ref, status, id, flw_ref, currency } = data;
+
+      // STEP 2: Find transaction by tx_ref (this is our transaction ID/reference)
+      const transaction = await this.transactionsService.findByReference(tx_ref);
+
+      if (!transaction) {
+        this.logger.warn(`Transaction not found for tx_ref: ${tx_ref}`);
+        // Return success to avoid webhook retries for invalid transactions
+        return {
+          status: 'success',
+          message: 'Transaction not found',
+        };
+      }
+
+      // STEP 3: Idempotency check - prevent duplicate processing
+      if (transaction.status === TransactionStatus.COMPLETED) {
+        this.logger.warn(
+          `Transaction ${tx_ref} already completed. Skipping duplicate processing.`,
+        );
+        return {
+          status: 'success',
+          message: 'Transaction already processed',
+        };
+      }
+
+      // STEP 4: Map Flutterwave status to internal status and process accordingly
+      if (status === 'successful') {
+        this.logger.log(`Processing successful payment for transaction ${tx_ref}`);
+
+        // STEP 5: Credit wallet if transaction has walletId
+        if (transaction.walletId) {
+          try {
+            await this.walletService.creditWallet(
+              transaction.walletId,
+              transaction.amount,
+              WalletTransactionType.DEPOSIT,
+              `Flutterwave deposit - ${transaction.reference}`,
+              transaction.id,
+              {
+                flutterwaveTransactionId: id,
+                flutterwaveReference: flw_ref,
+                paymentType: data.payment_type,
+                currency: currency,
+                event: webhookPayload.event,
+              },
+            );
+
+            this.logger.log(
+              `Wallet ${transaction.walletId} credited with ${transaction.amount} ${transaction.walletCurrency}`,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Failed to credit wallet ${transaction.walletId}: ${error.message}`,
+              error.stack,
+            );
+            // Continue to update transaction status even if wallet credit fails
+            // This allows manual reconciliation
+          }
+        }
+
+        // STEP 6: Update transaction to COMPLETED
+        await this.transactionsService.updateTransactionStatus(transaction.id, {
+          status: TransactionStatus.COMPLETED,
+          providerTransactionId: String(id),
+          completedAt: new Date(),
+          metadata: {
+            ...transaction.metadata,
+            flutterwaveTransactionId: id,
+            flutterwaveReference: flw_ref,
+            amountCharged: data.charged_amount,
+            paymentType: data.payment_type,
+            currency: currency,
+            webhookEvent: webhookPayload.event,
+            processedAt: new Date().toISOString(),
+          },
+        });
+
+        this.logger.log(
+          `Transaction ${tx_ref} completed successfully. Flutterwave ID: ${id}, Reference: ${flw_ref}`,
+        );
+      } else if (status === 'failed') {
+        // STEP 7: Handle failed transactions
+        this.logger.warn(`Processing failed payment for transaction ${tx_ref}`);
+
+        await this.transactionsService.updateTransactionStatus(transaction.id, {
+          status: TransactionStatus.FAILED,
+          errorMessage: data.processor_response || 'Payment failed',
+          errorCode: status,
+          failedAt: new Date(),
+          metadata: {
+            ...transaction.metadata,
+            flutterwaveTransactionId: id,
+            flutterwaveReference: flw_ref,
+            failureReason: data.processor_response,
+            webhookEvent: webhookPayload.event,
+            failedAt: new Date().toISOString(),
+          },
+        });
+
+        this.logger.warn(
+          `Transaction ${tx_ref} failed. Reason: ${data.processor_response || 'Unknown'}`,
+        );
+      } else {
+        // Status is pending or other - update metadata but keep status as pending
+        this.logger.log(`Transaction ${tx_ref} status: ${status} - keeping as pending`);
+
+        await this.transactionsService.updateTransactionStatus(transaction.id, {
+          status: TransactionStatus.PENDING,
+          metadata: {
+            ...transaction.metadata,
+            flutterwaveTransactionId: id,
+            flutterwaveReference: flw_ref,
+            lastWebhookStatus: status,
+            webhookEvent: webhookPayload.event,
+            lastUpdated: new Date().toISOString(),
+          },
+        });
+      }
+
+      // Return success response to Flutterwave
+      return {
+        status: 'success',
+        message: 'Webhook processed successfully',
+      };
     } catch (error) {
       this.logger.error(
         `Failed to process Flutterwave webhook: ${error.message}`,
@@ -120,10 +256,10 @@ export class PaymentProvidersController {
       );
 
       // Return success to Flutterwave to avoid retries
-      // But log the error for investigation
+      // Log error for manual investigation
       return {
         status: 'success',
-        message: 'Webhook received',
+        message: 'Webhook received with errors',
       };
     }
   }

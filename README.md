@@ -118,10 +118,10 @@ For development with hot-reload and automatic code reloading:
 
 ```bash
 # Start in development mode
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 # Or in background
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
 Now you can edit code and see changes instantly:

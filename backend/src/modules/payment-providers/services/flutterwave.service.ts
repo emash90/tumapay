@@ -38,14 +38,14 @@ export class FlutterwaveService {
     this.environment = this.configService.get<string>('flutterwave.environment', 'sandbox');
 
     if (!this.publicKey || !this.secretKey) {
-      this.logger.error('Flutterwave API keys not configured');
-      throw new Error('Flutterwave API keys not configured');
+      this.logger.warn('Flutterwave API keys not configured - service will not be functional');
+      // Don't throw error during initialization to allow app to start
+      // Methods will fail gracefully if called without proper configuration
+    } else {
+      // Initialize Flutterwave SDK only if keys are configured
+      this.flutterwave = new Flutterwave(this.publicKey, this.secretKey);
+      this.logger.log(`Flutterwave service initialized in ${this.environment} mode`);
     }
-
-    // Initialize Flutterwave SDK
-    this.flutterwave = new Flutterwave(this.publicKey, this.secretKey);
-
-    this.logger.log(`Flutterwave service initialized in ${this.environment} mode`);
   }
 
   /**

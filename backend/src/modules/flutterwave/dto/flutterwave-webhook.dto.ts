@@ -1,34 +1,6 @@
 import { IsNotEmpty, IsString, IsNumber, IsObject, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-/**
- * Flutterwave Webhook Payload DTO
- *
- * Represents the payload sent by Flutterwave to our webhook endpoint
- * when a payment status changes.
- */
-export class FlutterwaveWebhookDto {
-  /**
-   * Event type (e.g., 'charge.completed', 'transfer.completed')
-   */
-  @ApiProperty({
-    description: 'Webhook event type',
-    example: 'charge.completed',
-  })
-  @IsString()
-  @IsNotEmpty()
-  event: string;
-
-  /**
-   * Event data containing transaction details
-   */
-  @ApiProperty({
-    description: 'Event data containing transaction details',
-  })
-  @IsObject()
-  @IsNotEmpty()
-  data: FlutterwaveWebhookDataDto;
-}
+import { Type } from 'class-transformer';
 
 /**
  * Flutterwave Webhook Event Data DTO
@@ -178,9 +150,50 @@ export class FlutterwaveWebhookDataDto {
   meta?: Record<string, any>;
 
   /**
+   * Processor response
+   */
+  @ApiPropertyOptional({
+    description: 'Processor response message',
+  })
+  @IsString()
+  @IsOptional()
+  processor_response?: string;
+
+  /**
    * Additional properties
    */
   [key: string]: any;
+}
+
+/**
+ * Flutterwave Webhook Payload DTO
+ *
+ * Represents the payload sent by Flutterwave to our webhook endpoint
+ * when a payment status changes.
+ */
+export class FlutterwaveWebhookDto {
+  /**
+   * Event type (e.g., 'charge.completed', 'transfer.completed')
+   */
+  @ApiProperty({
+    description: 'Webhook event type',
+    example: 'charge.completed',
+  })
+  @IsString()
+  @IsNotEmpty()
+  event: string;
+
+  /**
+   * Event data containing transaction details
+   */
+  @ApiProperty({
+    description: 'Event data containing transaction details',
+    type: () => FlutterwaveWebhookDataDto,
+  })
+  @Type(() => FlutterwaveWebhookDataDto)
+  @IsObject()
+  @IsNotEmpty()
+  data: FlutterwaveWebhookDataDto;
 }
 
 /**
